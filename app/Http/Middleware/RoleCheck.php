@@ -13,18 +13,21 @@ class RoleCheck
         if (!Auth::check()) {
             return redirect()->route('login');
         }
-
-        $user = Auth::user();
-
-        if (!$roles) {
+        // bypass CSRF preflight / form submit tertentu
+        if ($request->is('absensi/checkout')) {
             return $next($request);
         }
 
-        $allowed = array_map('trim', explode(',', $roles));
 
-        if (!in_array($user->role, $allowed)) {
-            // kalau bukan role yang diizinkan -> forbidden atau redirect
-            abort(403, 'Anda tidak memiliki akses.');
+        $user = Auth::user();
+
+        if ($roles) {
+            $allowed = array_map('trim', explode(',', $roles));
+
+            // Cek apakah role user ada di dalam daftar role yang diizinkan
+            if (!in_array($user->role, $allowed)) {
+                return abort(403, 'Anda tidak memiliki akses.');
+            }
         }
 
         return $next($request);

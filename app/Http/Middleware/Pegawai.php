@@ -4,11 +4,11 @@ namespace App\Http\Middleware;
 
 use Closure;
 
-class Pegawai
+class Owner
 {
     public function handle($request, Closure $next)
     {
-        if (session('user')->role !== 'pegawai') {
+        if (session('user')->role !== 'Pegawai') {
             return redirect('/dashboard')->with('error', 'Tidak punya akses');
         }
         return $next($request);

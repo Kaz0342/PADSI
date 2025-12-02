@@ -3,6 +3,7 @@ namespace App\Models;
 
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class User extends Authenticatable
 {
@@ -23,12 +24,12 @@ class User extends Authenticatable
         'remember_token',
     ];
 
-    public function getAuthIdentifierName()
+    public function getAuthIdentifierName(): string
     {
         return 'username';
     }
 
-    public function pegawai()
+    public function pegawai(): HasOne
     {
         return $this->hasOne(Pegawai::class, 'user_id');
     }

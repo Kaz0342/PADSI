@@ -2,11 +2,20 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Absensi extends Model
 {
     protected $table = 'absensi';
 
+    // FIX: Menggunakan timestamp karena check_in_at dan check_out_at adalah DATETIME/TIMESTAMP
+    protected $casts = [
+        'check_in_at' => 'datetime',
+        'check_out_at' => 'datetime',
+        'tanggal' => 'date',
+    ];
+
+    // Kolom yang bisa diisi (berdasarkan schema lo)
     protected $fillable = [
         'pegawai_id',
         'tanggal',
@@ -16,16 +25,16 @@ class Absensi extends Model
         'lokasi_long',
         'location_info',
         'status_kehadiran',
-        'catatan',
-        'absensi_pengganti_id'
+        'catatan', // Kolom yang dipake di checkOut
+        'absensi_pengganti_id',
     ];
 
-    public function pegawai()
+    public function pegawai(): BelongsTo
     {
         return $this->belongsTo(Pegawai::class, 'pegawai_id');
     }
 
-    public function penggantiLog()
+    public function penggantiLog(): BelongsTo
     {
         return $this->belongsTo(AbsensiPengganti::class, 'absensi_pengganti_id');
     }

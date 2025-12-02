@@ -27,8 +27,7 @@ return new class extends Migration {
 
             $table->timestamps();
 
-            $table->foreign('pegawai_id')->references('id')->on('pegawai')->onDelete('cascade');
-            $table->foreign('absensi_pengganti_id')->references('id')->on('absensi_pengganti')->onDelete('set null');
+            $table->foreign('pegawai_id')->references('id')->on('pegawai')->cascadeOnDelete()->cascadeOnUpdate();
         });
     }
 
@@ -36,4 +35,3 @@ return new class extends Migration {
         Schema::dropIfExists('absensi');
     }
 };
-    
