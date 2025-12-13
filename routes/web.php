@@ -23,7 +23,7 @@ Route::middleware(['authcheck'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     
     /* AJAX STATS (Dipake di Dashboard Owner) */
-    Route::get('/dashboard/stats', [DashboardController::class, 'stats'])->name('dashboard.stats');
+ 
 
     /* OWNER + PEGAWAI ACCESS */
     Route::get('/inventory', fn() => view('inventory.index'))->name('inventory.index');
