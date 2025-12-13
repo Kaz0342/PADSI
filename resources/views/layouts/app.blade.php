@@ -3,304 +3,197 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>{{ $title ?? 'Kedai Matari' }}</title>
-    <meta name="csrf-token" content="{{ csrf_token() }}"> {{-- INI KUNCI CSRF --}}
+    <title>{{ $title ?? 'Kedai Matari System' }}</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}"> 
     
     {{-- Fonts & Icons --}}
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     
-    {{-- Global Styles --}}
     <style>
+        /* =========================================
+           🎨 GLOBAL VARIABLES & RESET
+           ========================================= */
         :root {
-            --accent: #f7a20a;
-            --accent-dark: #e28e00;
-            --bg: #f6f6f6;
-            --card: #fff;
-            --muted: #7a7a7a;
-            --radius: 12px;
+            --accent: #f7a20a;         /* Orange Matari */
+            --accent-hover: #e28e00;
+            --text-main: #ffffff;      /* Text Utama Putih */
+            --text-muted: #d1d5db;     /* Text Muted Abu Terang */
+            
+            /* GLASS VARIABLES */
+            --glass-bg: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.15);
+            --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            
+            --radius: 14px;
         }
 
-        * {
-            box-sizing: border-box;
-            font-family: 'Inter', system-ui, Arial, sans-serif
-        }
+        * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
 
+        /* =========================================
+           🖼️ BACKGROUND CINEMATIC
+           ========================================= */
         body {
             margin: 0;
-            background: var(--bg);
-            color: #222
+            /* Background Image Fixed biar gak gerak pas scroll */
+            background: url('/images/bg-matari.jpg') no-repeat center center/cover fixed;
+            color: var(--text-main);
+            min-height: 100vh;
+            overflow-x: hidden;
         }
 
-        /* --- LAYOUTS & UI ELEMENTS --- */
+        /* Dark Overlay Global */
+        body::before {
+            content: ""; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.65); /* Overlay Gelap */
+            backdrop-filter: blur(6px);    /* Blur Background */
+            z-index: -1;
+        }
+
+        /* =========================================
+           💎 UI COMPONENTS (GLASSMOPHISM)
+           ========================================= */
+        
+        /* 1. TOPBAR */
         .topbar {
-            background: var(--accent);
-            padding: 14px 24px;
-            color: #111;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            box-shadow: 0 2px 0 rgba(0, 0, 0, 0.03)
+            background: rgba(0,0,0,0.4); /* Semi-transparent dark */
+            backdrop-filter: blur(10px);
+            padding: 15px 5%;
+            border-bottom: 1px solid var(--glass-border);
+            display: flex; align-items: center; justify-content: space-between;
+            position: sticky; top: 0; z-index: 100;
         }
 
         .brand {
-            font-weight: 700
+            font-weight: 800; font-size: 18px; 
+            background: linear-gradient(90deg, #fff, #f7a20a);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
         }
 
+        /* 2. CONTAINER */
         .container {
-            width: 95%;
-            max-width: 1200px;
-            margin: 22px auto
+            width: 92%; max-width: 1200px; margin: 25px auto;
+            padding-bottom: 40px;
         }
 
+        /* 3. CARD (GLOBAL) - Biar semua page otomatis Glassy */
         .card {
-            background: var(--card);
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
             border-radius: var(--radius);
-            padding: 18px;
-            box-shadow: 0 6px 22px rgba(20, 20, 20, 0.04);
-            margin-bottom: 18px
+            padding: 24px;
+            box-shadow: var(--glass-shadow);
+            margin-bottom: 20px;
+            color: var(--text-main);
         }
 
-        /* --- BUTTONS & LINKS --- */
-        .btn {
-            background: var(--accent);
-            color: #fff;
-            padding: 8px 12px;
-            border-radius: 10px;
-            border: 0;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-block
-        }
-
-        .btn.secondary {
-            background: #e9e9e9;
-            color: #333
-        }
-        
-        /* --- NAVIGASI (Grouped Tabs) --- */
+        /* =========================================
+           🧭 NAVIGATION BAR (SCROLLABLE GLASS)
+           ========================================= */
         .navbar-owner {
-            display: flex;
-            padding: 5px; 
-            background: var(--card); 
-            border-radius: 10px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.08); 
-            margin-bottom: 20px; 
-            margin-top: -10px;
-            border: 1px solid #eee;
-            overflow-x: auto; /* Antisipasi kalau menu kepanjangan di HP */
+            display: flex; gap: 8px; padding: 8px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            margin-bottom: 25px;
+            overflow-x: auto; /* Scrollable di HP */
+            white-space: nowrap;
+            backdrop-filter: blur(10px);
         }
         
-        /* Style Link Navigasi */
+        /* Custom Scrollbar tipis */
+        .navbar-owner::-webkit-scrollbar { height: 4px; }
+        .navbar-owner::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 4px; }
+
         .navbar-owner a {
-            text-decoration: none;
-            color: #4b5563; 
-            font-weight: 500;
-            padding: 8px 15px; 
-            border-radius: 6px;
-            transition: all 0.2s;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            white-space: nowrap; 
+            text-decoration: none; color: var(--text-muted);
+            font-weight: 500; font-size: 13px;
+            padding: 10px 16px; border-radius: 8px;
+            transition: all 0.2s ease;
+            display: flex; align-items: center; gap: 8px;
         }
         
         .navbar-owner a:hover {
-            background: #f3f4f6;
-            color: #1f2937;
+            background: rgba(255,255,255,0.1); color: #fff;
         }
         
         .navbar-owner a.active {
             background: var(--accent); 
-            color: white; 
-            box-shadow: 0 1px 5px rgba(247, 162, 10, 0.4);
-            font-weight: 600;
+            color: #fff; /* Text hitam di orange biar kontras */
+            font-weight: 700;
+            box-shadow: 0 4px 15px rgba(247, 162, 10, 0.4);
         }
 
-        /* --- FORMS --- */
-        input,
-        select,
-        textarea {
-            width: 100%;
-            padding: 10px;
-            border-radius: 999px;
-            border: 1px solid #e6e6e6
-        }
-        
-        .form-row {
-            display: flex;
-            gap: 12px
-        }
-
-        .form-row .col-2 {
-            flex: 2
-        }
-
-        .form-row .col-1 {
-            flex: 1
-        }
-        
-        .small-muted {
-            font-size: 12px;
-            color: var(--muted)
-        }
-
-        /* --- TABLES & DATA DISPLAY --- */
-        .row {
-            display: flex;
-            gap: 18px;
-            flex-wrap: wrap
-        }
-
-        .col {
-            flex: 1
-        }
-
-        .float-right {
-            text-align: right
-        }
-
-        .table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 12px
-        }
-
-        .table th {
-            background: transparent;
-            padding: 14px;
-            text-align: left;
-            color: var(--muted);
-            font-size: 13px
-        }
-
-        .table td {
-            padding: 12px;
-            border-top: 1px solid #f0f0f0
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 6px 10px;
-            border-radius: 999px;
-            font-size: 12px
-        }
-
-        .badge.green {
-            background: #e6fbec;
-            color: #0a9a3d
-        }
-
-        .badge.yellow {
-            background: #fff7e6;
-            color: #c07b00
-        }
-
-        .badge.red {
-            background: #ffecec;
-            color: #d02b2b
-        }
-
-        /* --- CALENDAR COMPONENTS --- */
-        .cal-grid {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 12px
-        }
-
-        .cal-cell {
-            background: #fff;
+        /* =========================================
+           📝 FORMS & INPUTS (GLOBAL DARK MODE)
+           ========================================= */
+        input, select, textarea {
+            width: 100%; padding: 12px 16px;
             border-radius: 10px;
-            padding: 12px;
-            min-height: 78px;
-            position: relative;
-            border: 1px solid #f0f0f0
+            border: 1px solid var(--glass-border);
+            background: rgba(0, 0, 0, 0.3); /* Dark input bg */
+            color: #fff;
+            outline: none; transition: 0.2s;
+            font-size: 14px;
         }
+        input:focus, select:focus, textarea:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(247, 162, 10, 0.2);
+            background: rgba(0, 0, 0, 0.5);
+        }
+        /* Placeholder color */
+        ::placeholder { color: rgba(255,255,255,0.4); }
 
-        .cal-day {
-            font-weight: 600
-        }
+        /* Option di select (Browser default ga bisa transparan) */
+        option { background: #222; color: #fff; }
 
-        .legend {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-            margin-top: 14px
+        .btn {
+            background: var(--accent); color: #fff;
+            padding: 10px 20px; border-radius: 10px; border: 0;
+            font-weight: 600; cursor: pointer; text-decoration: none;
+            display: inline-flex; align-items: center; gap: 6px;
+            transition: 0.2s;
         }
+        .btn:hover { background: var(--accent-hover); transform: translateY(-2px); }
+        .btn.secondary { background: rgba(255,255,255,0.1); color: #fff; }
+        .btn.secondary:hover { background: rgba(255,255,255,0.2); }
 
-        .legend .dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 99px;
-            display: inline-block
+        /* =========================================
+           📊 TABLES (TRANSPARENT)
+           ========================================= */
+        .table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .table th {
+            text-align: left; padding: 15px;
+            color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--glass-border);
         }
+        .table td {
+            padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.05);
+            font-size: 14px;
+        }
+        .table tr:hover td { background: rgba(255,255,255,0.05); }
 
-        .dot.green {
-            background: #26a84b
-        }
-
-        .dot.yellow {
-            background: #f2b400
-        }
-
-        .dot.red {
-            background: #e74c3c
-        }
-
-        /* --- MODAL --- */
-        .modal-backdrop {
-            position: fixed;
-            inset: 0;
-            background: rgba(12, 12, 12, 0.35);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            z-index: 60
-        }
-
-        .modal {
-            background: var(--card);
-            border-radius: 14px;
-            padding: 18px;
-            width: 100%;
-            max-width: 720px;
-            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12)
-        }
-        
-        /* --- TOAST STYLES --- */
-        #toast-container {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1000;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            align-items: flex-end;
-        }
-
+        /* =========================================
+           🔔 TOAST & MODAL
+           ========================================= */
+        #toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
         .toast {
-            background: #fff;
-            color: #333;
-            padding: 12px 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            min-width: 250px;
-            transition: opacity 0.3s, transform 0.3s;
+            background: rgba(30, 30, 30, 0.9); backdrop-filter: blur(10px);
+            color: #fff; padding: 14px 20px; border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3); border: 1px solid var(--glass-border);
+            display: flex; align-items: center; gap: 12px; min-width: 280px;
+            animation: slideIn 0.3s ease;
         }
+        @keyframes slideIn { from{transform:translateX(100%);opacity:0;} to{transform:translateX(0);opacity:1;} }
+        
+        .toast.success i { color: #4ade80; }
+        .toast.error i { color: #f87171; }
+        .toast.info i { color: #60a5fa; }
 
-        .toast.success {
-            border-left: 5px solid #2ecc71;
-        }
-
-        .toast.error {
-            border-left: 5px solid #e74c3c;
-        }
     </style>
     @stack('styles')
 </head>
@@ -308,16 +201,25 @@
 
 <div id="toast-container"></div>
 
+{{-- TOPBAR GLASS --}}
 <div class="topbar">
-    <div class="brand">Kedai Matari Absensi & Inventory</div>
-    <div style="display:flex; align-items:center; gap:10px;">
-        {{-- Display User Info --}}
-        <span style="color:#fff;opacity:0.95">{{ auth()->user()->name ?? 'Guest' }}</span>
+    <div class="brand">
+        <i class="fa-solid fa-mug-hot" style="margin-right:8px; color:var(--accent);"></i>
+        Kedai Matari
+    </div>
+    
+    <div style="display:flex; align-items:center; gap:15px;">
+        {{-- User Info --}}
+        <div style="text-align:right; display:none; @media(min-width:768px){display:block;}">
+            <div style="font-size:14px; font-weight:700;">{{ auth()->user()->name ?? 'Guest' }}</div>
+            <div style="font-size:11px; opacity:0.7; text-transform:uppercase;">{{ auth()->user()->role ?? '-' }}</div>
+        </div>
         
-        {{-- TOMBOL LOGOUT (Dipicu oleh Form Logout tersembunyi di bawah) --}}
+        {{-- LOGOUT BUTTON --}}
         <a href="#" onclick="event.preventDefault(); document.getElementById('logout-form-topbar').submit();"
-           style="background:#fff;padding:8px;border-radius:8px;color:#cc4444;font-weight:700;font-size:14px; text-decoration:none; display:inline-flex; align-items:center; gap:5px;">
-            <i class="fa-solid fa-sign-out-alt" style="font-size:12px;"></i> Logout
+           style="background:rgba(255,50,50,0.15); padding:8px 12px; border-radius:8px; color:#f87171; font-weight:600; font-size:13px; text-decoration:none; display:flex; align-items:center; gap:6px; border:1px solid rgba(255,50,50,0.2); transition:0.2s;">
+            <i class="fa-solid fa-power-off"></i> 
+            <span style="display:none; @media(min-width:600px){display:inline;}">Logout</span>
         </a>
     </div>
 </div>
@@ -327,103 +229,96 @@
     @if(auth()->check())
         <div class="navbar-owner">
             @if(auth()->user()->role === 'owner')
-                {{-- NAVIGASI OWNER (FULL ACCESS) --}}
-                <a href="{{ route('dashboard') }}" class="nav-item {{ request()->is('dashboard') ? 'active' : '' }}">
-                    <i class="fa-solid fa-gauge" style="font-size:14px;"></i> Dashboard
+                {{-- OWNER NAV --}}
+                <a href="{{ route('dashboard') }}" class="{{ request()->is('dashboard') ? 'active' : '' }}">
+                    <i class="fa-solid fa-chart-pie"></i> Dashboard
                 </a>
-                <a href="{{ route('pegawai.index') }}" class="nav-item {{ request()->is('pegawai*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-users" style="font-size:14px;"></i> Kelola Karyawan
+                <a href="{{ route('pegawai.index') }}" class="{{ request()->is('pegawai*') ? 'active' : '' }}">
+                    <i class="fa-solid fa-users"></i> Karyawan
                 </a>
-                <a href="{{ route('shifts.index') }}" class="nav-item {{ request()->is('shifts*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-clock" style="font-size:14px;"></i> Shift Kerja
+                <a href="{{ route('shifts.index') }}" class="{{ request()->is('shifts*') ? 'active' : '' }}">
+                    <i class="fa-solid fa-calendar-days"></i> Shift
                 </a>
-                <a href="{{ route('absensi.rekap') }}" class="nav-item {{ request()->is('absensi/rekap') ? 'active' : '' }}">
-                    <i class="fa-solid fa-clipboard-list" style="font-size:14px;"></i> Rekap Absensi
+                <a href="{{ route('absensi.rekap') }}" class="{{ request()->is('absensi/rekap') ? 'active' : '' }}">
+                    <i class="fa-solid fa-list-check"></i> Rekap Absen
                 </a>
-                <a href="{{ route('pos.import.form') }}" class="nav-item {{ request()->is('import/csv') ? 'active' : '' }}">
-                    <i class="fa-solid fa-file-import" style="font-size:14px;"></i> Impor CSV
+                <a href="{{ route('pos.import.form') }}" class="{{ request()->is('import/csv') ? 'active' : '' }}">
+                    <i class="fa-solid fa-file-csv"></i> POS Data
                 </a>
-                <a href="{{ route('inventory.index') }}" class="nav-item {{ request()->is('inventory*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-boxes-stacked" style="font-size:14px;"></i> Inventory
+                <a href="{{ route('inventory.index') }}" class="{{ request()->is('inventory*') ? 'active' : '' }}">
+                    <i class="fa-solid fa-boxes-stacked"></i> Inventory
                 </a>
-
             @else
-                {{-- NAVIGASI PEGAWAI (LIMITED ACCESS: Dashboard, Inventory, Absensi) --}}
-                <a href="{{ route('dashboard') }}" class="nav-item {{ request()->is('dashboard') ? 'active' : '' }}">
-                    <i class="fa-solid fa-house" style="font-size:14px;"></i> Dashboard
+                {{-- EMPLOYEE NAV --}}
+                <a href="{{ route('dashboard') }}" class="{{ request()->is('dashboard') ? 'active' : '' }}">
+                    <i class="fa-solid fa-house"></i> Home
                 </a>
-                <a href="{{ route('inventory.index') }}" class="nav-item {{ request()->is('inventory*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-boxes-stacked" style="font-size:14px;"></i> Inventory
+                <a href="{{ route('inventory.index') }}" class="{{ request()->is('inventory*') ? 'active' : '' }}">
+                    <i class="fa-solid fa-boxes-stacked"></i> Inventory
                 </a>
-                <a href="{{ route('absensi.index') }}" class="nav-item {{ request()->is('absensi') ? 'active' : '' }}">
-                    <i class="fa-solid fa-fingerprint" style="font-size:14px;"></i> Riwayat Absensi
+                <a href="{{ route('absensi.index') }}" class="{{ request()->is('absensi') ? 'active' : '' }}">
+                    <i class="fa-solid fa-clock-rotate-left"></i> Riwayat Saya
                 </a>
             @endif
         </div>
     @endif
     
-    {{-- Content Section --}}
+    {{-- CONTENT SECTION --}}
     @yield('content')
 </div>
 
-
-{{-- JAVASCRIPT LOGIC --}}
-<script>
-    // MODAL UTILITY
-    function openModal(id) {
-        document.getElementById(id).style.display = 'flex'
-    }
-
-    function closeModal(id) {
-        document.getElementById(id).style.display = 'none'
-    }
-
-    // TOAST NOTIFICATION LOGIC (Self-Executing Function)
-    (function() {
-        const container = document.getElementById('toast-container');
-        
-        // Looping untuk menampilkan pesan session
-        @if (session('success'))
-            showToast('{{ session('success') }}', 'success');
-        @elseif (session('error'))
-            showToast('{{ session('error') }}', 'error');
-        @elseif (session('info'))
-            showToast('{{ session('info') }}', 'info');
-        @endif
-
-        function showToast(message, type) {
-            const toast = document.createElement('div');
-            toast.className = `toast ${type}`;
-            
-            let icon = '';
-            if (type === 'success') {
-                icon = '<i class="fa-solid fa-circle-check" style="color:#2ecc71;"></i>';
-            } else if (type === 'error') {
-                icon = '<i class="fa-solid fa-circle-xmark" style="color:#e74c3c;"></i>';
-            } else {
-                icon = '<i class="fa-solid fa-circle-info" style="color:#3498db;"></i>';
-            }
-
-            toast.innerHTML = icon + message;
-            
-            container.appendChild(toast);
-
-            // Auto-remove after 5 seconds
-            setTimeout(() => {
-                toast.style.opacity = '0';
-                toast.style.transform = 'translateY(-20px)';
-                setTimeout(() => toast.remove(), 300);
-            }, 5000);
-        }
-    })();
-</script>
-
-{{-- Form tersembunyi untuk Logout --}}
+{{-- LOGOUT FORM HIDDEN --}}
 <form id="logout-form-topbar" action="{{ route('logout') }}" method="POST" style="display:none;">
     @csrf
 </form>
 
-{{-- Stack for custom scripts from child views --}}
+{{-- SCRIPTS --}}
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+
+<script>
+    // --- UTILITIES ---
+    function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+    // --- TOAST NOTIFICATION LOGIC ---
+    (function() {
+        const container = document.getElementById('toast-container');
+
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            
+            let icon = '<i class="fa-solid fa-circle-info"></i>';
+            if (type === 'success') icon = '<i class="fa-solid fa-circle-check"></i>';
+            if (type === 'error') icon = '<i class="fa-solid fa-circle-exclamation"></i>';
+
+            toast.innerHTML = `${icon} <span>${message}</span>`;
+            container.appendChild(toast);
+
+            // Auto remove
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100%)';
+                setTimeout(() => toast.remove(), 300);
+            }, 5000);
+        }
+
+        // Trigger dari Session Laravel
+        @if (session('success')) window.showToast("{{ session('success') }}", 'success'); @endif
+
+        @if (session()->has('error') && !request()->is('dashboard'))
+            window.showToast("{{ session('error') }}", 'error');
+        @endif
+
+        @if (session()->has('info') && !request()->is('dashboard'))
+            window.showToast("{{ session('info') }}", 'info');
+        @endif
+
+        // Expose ke global biar bisa dipanggil dari JS lain
+        window.showToast = showToast;
+    })();
+</script>
+
 @stack('scripts')
 
 </body>

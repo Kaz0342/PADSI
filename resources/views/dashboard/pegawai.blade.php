@@ -5,363 +5,387 @@
 @section('content')
 
 <style>
-/* ====== STYLING KHUSUS DASHBOARD PEGAWAI (FINAL) ====== */
+/* =========================================
+   🎨 PEGAWAI DASHBOARD SPECIFIC STYLES
+   ========================================= */
 :root {
---accent: #f7a20a;
---card: #ffffff;
+    --text-mid: #9ca3af;
 }
 
+/* 1. WELCOME BANNER (GLASS) */
 .welcome-card {
-background: var(--accent);
-color: white;
-border-radius: 14px;
-padding: 28px;
-margin-bottom: 25px;
-box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+    background: linear-gradient(135deg, rgba(247, 162, 10, 0.15), rgba(247, 162, 10, 0.05));
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(247, 162, 10, 0.3);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 25px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    color: white;
+    position: relative;
+    overflow: hidden;
+}
+.welcome-card::after {
+    content: ""; position: absolute; top: -50px; right: -50px;
+    width: 150px; height: 150px; background: var(--accent);
+    filter: blur(80px); opacity: 0.2; z-index: -1;
 }
 
-.jabatan-text {
-font-size: 15px;
-opacity: .9;
-}
+.jabatan-text { font-size: 15px; opacity: 0.8; margin-top: 6px; }
 
-.row-flex {
-display: flex;
-gap: 20px;
-flex-wrap: wrap;
-}
-
+/* 2. LAYOUT GRID */
+.row-flex { display: flex; gap: 24px; flex-wrap: wrap; }
 .card-box {
-background: #fff;
-padding: 20px;
-border-radius: 14px;
-box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-flex: 1;
-min-width: 350px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    padding: 24px; border-radius: 16px;
+    box-shadow: var(--glass-shadow);
+    flex: 1; min-width: 320px;
+    color: white;
+    display: flex; flex-direction: column;
 }
 
-/* BADGE FIX FINAL */
+/* 3. HEADINGS */
+h3 { margin: 0 0 20px 0; font-size: 18px; font-weight: 700; color: white; display: flex; align-items: center; gap: 10px; }
+h3 i { color: var(--accent); }
+
+/* 4. STATUS BADGE (NEON STYLE) */
 .status-badge {
-display: inline-block;
-padding: 6px 12px;
-border-radius: 8px;
-font-weight: 700;
-text-transform: uppercase;
-font-size: 13px;
-margin-top: 10px;
+    display: inline-block; padding: 8px 16px; border-radius: 10px;
+    font-weight: 800; text-transform: uppercase; font-size: 14px;
+    margin-top: 5px; letter-spacing: 0.5px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    border: 1px solid transparent;
 }
 
-.status-hadir, .status-pengganti {
-background: #d6f8df;
-color: #0a7a28;
+.status-hadir, .status-pengganti, .status-siap {
+    background: rgba(74, 222, 128, 0.15); color: #4ade80; border-color: #4ade80;
+    box-shadow: 0 0 20px rgba(74, 222, 128, 0.2);
 }
-
 .status-terlambat {
-background:#fff2c6;
-color:#9a6a00;
+    background: rgba(250, 204, 21, 0.15); color: #facc15; border-color: #facc15;
+    box-shadow: 0 0 20px rgba(250, 204, 21, 0.2);
+}
+.status-alpha, .status-tidak-terjadwal {
+    background: rgba(248, 113, 113, 0.15); color: #f87171; border-color: #f87171;
+    box-shadow: 0 0 20px rgba(248, 113, 113, 0.2);
+}
+.status-belum, .status-diluar-jam {
+    background: rgba(255, 255, 255, 0.1); color: #d1d5db; border-color: rgba(255, 255, 255, 0.2);
 }
 
-.status-alpha {
-background:#ffe0e0;
-color:#b01a1a;
-}
-
-.status-belum {
-background:#e5e5e5;
-color:#4b4b4b;
-}
-
-/* History sesi box */
-.sesi-box {
-background: var(--card);
-padding: 20px;
-border-radius: 14px;
-box-shadow: 0 4px 10px rgba(0,0,0,0.06);
-}
-
+/* 5. HISTORY SESI LIST */
 .sesi-item {
-padding: 10px 0;
-border-bottom: 1px solid #eee;
-font-size: 14px;
+    padding: 14px 0; border-bottom: 1px solid rgba(255,255,255,0.1);
+    display: flex; flex-direction: column; gap: 4px;
 }
+.sesi-item:last-child { border-bottom: none; }
 
-.sesi-item:last-child {
-border-bottom: none;
+.session-time { font-size: 16px; font-weight: 700; font-family: monospace; }
+.session-ok { color: #4ade80; text-shadow: 0 0 10px rgba(74, 222, 128, 0.4); }
+.session-active { color: #f87171; animation: pulse 2s infinite; }
+
+@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+
+/* 6. BUTTONS */
+.btn-checkin {
+    background: linear-gradient(135deg, var(--accent), #d97706);
+    color: white; border: none; padding: 12px 24px; border-radius: 10px;
+    font-weight: 700; cursor: pointer; width: 100%; margin-bottom: 10px;
+    box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4); transition: 0.2s;
+    display: flex; justify-content: center; align-items: center; gap: 8px;
 }
+.btn-checkin:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(245, 158, 11, 0.6); }
 
-.session-time {
-font-size: 15px;
-font-weight: 700;
+.btn-secondary-glass {
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+    color: white; padding: 12px 24px; border-radius: 10px;
+    font-weight: 600; cursor: pointer; width: 100%; text-align: center;
+    text-decoration: none; display: inline-block; transition: 0.2s;
 }
+.btn-secondary-glass:hover { background: rgba(255,255,255,0.2); }
+.btn-secondary-glass.warning { border-color: #eab308; color: #fef08a; background: rgba(234, 179, 8, 0.1); }
 
-.session-active {
-color: #e63946; /* Merah untuk Active */
-font-weight: 700;
+.btn-checkout-danger {
+    background: linear-gradient(135deg, #ef4444, #b91c1c);
+    color: white; border: none; padding: 12px 24px; border-radius: 10px;
+    font-weight: 700; cursor: pointer; width: 100%;
+    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
 }
+.btn-checkout-danger:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(239, 68, 68, 0.6); }
 
-.session-ok {
-color: #10b981; /* Hijau untuk Check-in/Check-out sukses */
-font-weight: 700;
-}
-
-/* Alert/Warning Box */
+/* 7. ALERT BOX */
 .warning-box {
-background: #fff3cd;
-color: #856404;
-padding: 12px;
-border-radius: 10px;
-margin-bottom: 20px;
-font-size: 14px;
-display: flex;
-align-items: center;
-gap: 8px;
+    background: rgba(250, 204, 21, 0.15); border: 1px solid rgba(250, 204, 21, 0.3);
+    color: #facc15; padding: 14px; border-radius: 10px; margin-bottom: 20px;
+    font-size: 14px; display: flex; align-items: center; gap: 10px;
+    backdrop-filter: blur(5px);
 }
 
-.btn-checkout {
-background: #e74c3c !important;
-color: #fff !important;
-}
-
-/* Modal Styling */
+/* 8. MODAL GLASS */
 .modal-backdrop {
-position: fixed;
-top: 0;
-left: 0;
-width: 100%;
-height: 100%;
-background: rgba(0, 0, 0, 0.5);
-display: flex;
-justify-content: center;
-align-items: center;
-z-index: 1000;
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.8); backdrop-filter: blur(8px);
+    z-index: 1000; align-items: center; justify-content: center; padding: 20px;
 }
-.modal {
-background: white;
-padding: 30px;
-border-radius: 12px;
-width: 90%;
-max-width: 450px;
-box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+.modal-glass {
+    background: rgba(30, 30, 30, 0.9); border: 1px solid var(--glass-border);
+    padding: 30px; border-radius: 16px; width: 100%; max-width: 450px;
+    box-shadow: 0 25px 50px rgba(0,0,0,0.5); color: white;
+    transform: scale(0.95); animation: popIn 0.2s ease forwards;
 }
-.float-right {
-text-align: right;
+@keyframes popIn { to { transform: scale(1); } }
+
+/* SHIFT INFO BOX */
+.shift-info-glass {
+    background: rgba(0,0,0,0.2); 
+    border-radius: 12px; 
+    padding: 15px; 
+    margin-bottom: 20px;
+    text-align: center;
+    border: 1px solid rgba(255,255,255,0.05);
 }
+
 </style>
 
-{{-- Status Message from Controller --}}
+{{-- ERROR MESSAGE --}}
 @if (session('error'))
-
-<div class="card" style="background:#ffe0e0; color:#b01a1a; padding:15px; margin-bottom:20px; border-left:5px solid #d32f2f;">
-<i class="fa-solid fa-circle-exclamation"></i> {{ session('error') }}
-</div>
+    <div class="warning-box" style="background: rgba(239, 68, 68, 0.15); border-color: #ef4444; color: #f87171;">
+        <i class="fa-solid fa-circle-exclamation"></i> {{ session('error') }}
+    </div>
 @endif
 
-{{-- ==== HEADER WELCOME ==== --}}
-
+{{-- WELCOME BANNER --}}
 <div class="welcome-card">
-<h2 style="margin:0; font-weight:700;">Halo, {{ $pegawai->nama }}!</h2>
-<p class="jabatan-text">Selamat bertugas hari ini! Anda bertugas sebagai <b>{{ ucfirst($pegawai->jabatan) }}</b>.</p>
+    <h2 style="margin:0; font-weight:800; font-size: 24px; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">Halo, {{ $pegawai->nama }}! 👋</h2>
+    <p class="jabatan-text">Selamat bertugas! Hari ini kamu login sebagai <b>{{ ucfirst($pegawai->jabatan) }}</b>.</p>
 </div>
 
-{{-- ==== TANPA JADWAL (TAPI BELUM CHECK-IN) ==== --}}
-@if ($status == 'Belum Check-in' && !$jadwal)
-
-<div class="warning-box">
-<i class="fa-solid fa-circle-exclamation"></i>
-Anda tidak terjadwal hari ini. Silakan Check-in Pengganti.
-</div>
+{{-- GLOBAL WARNING: WAJIB PENGGANTI --}}
+@if ($mustPengganti)
+    <div class="warning-box">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <span>Kamu tidak ada jadwal shift hari ini. Wajib pakai Form Pengganti jika ingin bekerja.</span>
+    </div>
 @endif
-
-{{-- ==== MAIN CONTENT 2 COLUMN ==== --}}
 
 <div class="row-flex">
 
-{{-- ===================== LEFT BOX: STATUS & ACTION ===================== --}}
-<div class="card-box">
-    <h3>Status Kehadiran Hari Ini</h3>
+    {{-- LEFT BOX: STATUS & ACTIONS --}}
+    <div class="card-box">
+        <h3><i class="fa-solid fa-user-clock"></i> Status Shift Hari Ini</h3>
 
-    {{-- Badge Status --}}
-    @php
-        $statusLower = strtolower($status);
-        $statusClass = match($statusLower) {
-            'hadir' => 'status-hadir',
-            'pengganti' => 'status-pengganti',
-            'terlambat' => 'status-terlambat',
-            'alpha' => 'status-alpha',
-            'belum check-in' => 'status-belum',
-            default => 'status-belum'
-        };
-    @endphp
-
-    @if ($status == 'Belum Check-in')
-        <span class="status-badge {{ $statusClass }}">BELUM CHECK-IN</span>
-    @else
-        <span class="status-badge {{ $statusClass }}">{{ strtoupper($status) }}</span>
-    @endif
-
-    <div style="margin-top:20px; display:flex; gap:10px; flex-wrap:wrap;">
-        @if ($status == 'Belum Check-in' || $statusLower == 'alpha')
-            {{-- Tombol Check-in Normal / Late --}}
-            <button class="btn" onclick="submitCheckIn()" style="margin-bottom:10px;">
-                <i class="fa-solid fa-right-to-bracket"></i> Check-in Sekarang
-            </button>
-
-            {{-- Check-in Pengganti --}}
-            <a href="{{ route('absensi.pengganti.form') }}" class="btn secondary">
-                <i class="fa-solid fa-user-plus"></i> Check-in Pengganti
-            </a>
-
+        {{-- INFO JAM KERJA --}}
+        @if($shift)
+            <div class="shift-info-glass">
+                <span style="display:block; font-size:12px; color:var(--text-mid); margin-bottom:4px;">JAM KERJA</span>
+                <span style="font-size:20px; font-weight:800; color:white; font-family:monospace;">
+                    {{ \Carbon\Carbon::parse($shift->start_time)->format('H:i') }} — {{ \Carbon\Carbon::parse($shift->end_time)->format('H:i') }}
+                </span>
+            </div>
         @else
-            {{-- TOMBOL CHECK-OUT --}}
-            @if ($hadirSesi->whereNull('check_out_at')->count() > 0)
-            <button class="btn btn-checkout" onclick="openModal('checkoutModal')">
-                <i class="fa-solid fa-right-from-bracket"></i> Check-out Sesi Aktif
-            </button>
+            <div class="shift-info-glass" style="border-color: rgba(248,113,113,0.3); color: #f87171;">
+                <i class="fa-solid fa-calendar-xmark"></i> Tidak Terjadwal
+            </div>
+        @endif
+
+        {{-- BADGE STATUS --}}
+        @php
+            $st = \Illuminate\Support\Str::slug($statusAbsen);
+            $cls = match(true) {
+                str_contains($st, 'hadir') => 'status-hadir',
+                str_contains($st, 'pengganti') => 'status-pengganti',
+                str_contains($st, 'terlambat') => 'status-terlambat',
+                str_contains($st, 'alpha') => 'status-alpha',
+                str_contains($st, 'siap') => 'status-siap',
+                str_contains($st, 'tidak-terjadwal') => 'status-tidak-terjadwal',
+                default => 'status-belum'
+            };
+        @endphp
+
+        <div style="text-align:center; margin-bottom: 25px;">
+            <div class="status-badge {{ $cls }}">{{ strtoupper($statusAbsen) }}</div>
+        </div>
+
+        {{-- ACTION BUTTONS --}}
+        <div style="margin-top:auto;">
+            @if($mustPengganti)
+                <a href="{{ route('absensi.pengganti.form') }}" class="btn-secondary-glass warning" style="width:100%">
+                    <i class="fa-solid fa-user-group"></i> Isi Form Pengganti
+                </a>
+            @elseif($canCheckIn)
+                <button class="btn-checkin" onclick="submitCheckIn()">
+                    <i class="fa-solid fa-fingerprint"></i> Check-In Sekarang
+                </button>
+            @elseif($active)
+                <button class="btn-checkout-danger" onclick="openModal('checkoutModal')">
+                    <i class="fa-solid fa-right-from-bracket"></i> Check-Out Sesi
+                </button>
+                <div style="text-align:center; margin-top:10px; font-size:12px; color:#d1d5db;">
+                    Check-in pada: <b>{{ \Carbon\Carbon::parse($active->check_in_at)->format('H:i') }}</b>
+                </div>
             @else
-            <span class="status-badge {{ $statusClass }}" style="background:#eee; color:#777;">Sesi Hari Ini Selesai</span>
+                @if(!$shift)
+                    <div style="text-align:center; color:var(--text-mid);">Tidak ada jadwal.</div>
+                @else
+                    <div style="background:rgba(255,255,255,0.05); padding:12px; border-radius:10px; text-align:center; font-size:13px; color:#9ca3af;">
+                        <i class="fa-solid fa-lock"></i> Tombol absen terkunci (Diluar Jam).
+                    </div>
+                @endif
             @endif
+        </div>
+
+        {{-- HIDDEN FORM UTAMA --}}
+        <form id="checkin-form" action="{{ route('absensi.checkin') }}" method="POST" style="display:none;">
+            @csrf
+            <input type="hidden" name="lat" id="lat">
+            <input type="hidden" name="lng" id="lng">
+        </form>
+    </div>
+
+    {{-- RIGHT BOX: SESI HISTORY --}}
+    <div class="card-box">
+        <h3><i class="fa-solid fa-list-check"></i> Riwayat Hari Ini</h3>
+
+        @if ($hadirSesi->isEmpty())
+            <div style="text-align:center; padding:30px; color:var(--text-mid); opacity:0.7;">
+                <i class="fa-regular fa-clock" style="font-size:32px; margin-bottom:10px;"></i><br>
+                Belum ada sesi masuk.
+            </div>
+        @else
+            @foreach ($hadirSesi as $s)
+                <div class="sesi-item">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <span class="session-time session-ok">{{ \Carbon\Carbon::parse($s->check_in_at)->format('H:i') }}</span>
+                            <span style="opacity:0.5; margin:0 5px;">➔</span>
+                            @if ($s->check_out_at)
+                                <span class="session-time session-ok">{{ \Carbon\Carbon::parse($s->check_out_at)->format('H:i') }}</span>
+                            @else
+                                <span class="session-time session-active">AKTIF</span>
+                            @endif
+                        </div>
+                        @if(!$s->check_out_at)
+                            <div style="font-size:10px; background:rgba(248,113,113,0.2); color:#f87171; padding:2px 6px; border-radius:4px;">ON DUTY</div>
+                        @endif
+                    </div>
+                    @if ($s->catatan)
+                        <div style="font-size:12px; color:var(--text-mid); margin-top:4px; font-style:italic;">
+                            "{{ $s->catatan }}"
+                        </div>
+                    @endif
+                    @if($s->status_kehadiran == 'pengganti')
+                         <div style="font-size:11px; color:#facc15; margin-top:2px;">
+                            <i class="fa-solid fa-user-shield"></i> Shift Pengganti
+                        </div>
+                    @endif
+                </div>
+            @endforeach
         @endif
     </div>
 
-    {{-- Form tersembunyi untuk Check-in (diisi GPS oleh JS) --}}
-    <form id="checkin-form" action="{{ route('absensi.checkin') }}" method="POST" style="display:none;">
-        @csrf
-        <input type="hidden" name="lat" id="lat">
-        <input type="hidden" name="lng" id="lng">
-        <input type="hidden" name="wifi_connected" id="wifi_connected" value="0">
-        <input type="hidden" name="wifi_name" id="wifi_name" value="">
-    </form>
-
 </div>
 
+{{-- MODAL CHECK-OUT --}}
+<div id="checkoutModal" class="modal-backdrop" onclick="closeModal('checkoutModal')">
+    <div class="modal-glass" onclick="event.stopPropagation()">
 
-{{-- ===================== RIGHT BOX: SESI HARI INI ===================== --}}
-<div class="card-box">
-    <h3>Sesi Hari Ini ({{ $hadirSesi->count() }})</h3>
+        <h3 style="margin-top:0; color:white;">
+            <i class="fa-solid fa-right-from-bracket" style="color:#f87171;"></i>
+            Konfirmasi Check-out
+        </h3>
 
-    @if ($hadirSesi->isEmpty())
-        <p style="color:#777;">Belum ada sesi masuk hari ini.</p>
-    @else
-        @foreach ($hadirSesi as $s)
-            <div style="padding:10px 0; border-bottom:1px solid #eee;">
-                <span class="session-time session-ok">{{ \Carbon\Carbon::parse($s->check_in_at)->format('H:i') }}</span>
-                s.d.
-                @if ($s->check_out_at)
-                    <span class="session-time session-ok">{{ \Carbon\Carbon::parse($s->check_out_at)->format('H:i') }}</span>
-                @else
-                    <span class="session-time session-active">Sedang Aktif...</span>
-                @endif
-
-                @if ($s->catatan)
-                <p style="font-size:13px; margin-top:5px; color:#777;">Catatan: {{ $s->catatan }}</p>
-                @endif
-            </div>
-        @endforeach
-    @endif
-</div>
-
-
-</div>
-
-{{-- ===================== MODAL CHECK-OUT ===================== --}}
-
-<div id="checkoutModal" class="modal-backdrop" style="display:none;" onclick="closeModal('checkoutModal')">
-<div class="modal" onclick="event.stopPropagation()">
-<h3 style="margin-top:0;">Konfirmasi Check-out</h3>
-
-    {{-- WARNING EARLY CHECKOUT (Hanya ditampilkan jika Early Checkout terjadi) --}}
-    @if(isset($jadwal) && $jadwal && $jadwal->shift)
-        @php
-            $endToday = \Carbon\Carbon::parse($jadwal->shift->end_time, 'Asia/Jakarta');
-            $endToday = \Carbon\Carbon::today('Asia/Jakarta')->setTime($endToday->hour, $endToday->minute);
-        @endphp
-        
-        @if(\Carbon\Carbon::now('Asia/Jakarta')->lessThan($endToday))
-            <div class="warning-box" style="background:#ffe0e0; color:#b01a1a;">
+        {{-- WARNING PULANG AWAL — PAKAI VARIABEL DARI CONTROLLER --}}
+        @if($isEarly)
+            <div class="warning-box"
+                style="background:rgba(239,68,68,0.1); border-color:#ef4444; color:#f87171; font-size:13px;">
                 <i class="fa-solid fa-triangle-exclamation"></i>
-                Anda Check-out sebelum jadwal selesai ({{ $endToday->format('H:i') }}).
+                <div>
+                    <strong>Pulang Awal?</strong><br>
+                    Shift kamu seharusnya selesai jam <b>{{ $endTimeFormatted }}</b>.
+                </div>
             </div>
         @endif
-    @endif
 
+        <form action="{{ route('absensi.checkout') }}" method="POST">
+            @csrf
 
-    <form action="{{ route('absensi.checkout') }}" method="POST">
-        @csrf
+            <label style="display:block; margin-bottom:8px; font-size:13px; color:#d1d5db;">
+                Catatan (Wajib jika pulang awal)
+            </label>
+            <textarea name="alasan" rows="3"
+                placeholder="Contoh: Izin sakit / Urusan keluarga..."
+                style="width:100%; padding:12px; border-radius:10px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.2); color:white;">
+            </textarea>
 
-        {{-- Lo ganti logic conditional field required di modal dengan field tunggal. Backend lo yang tanggung jawab buat validasi. --}}
-        <label style="display:block; margin-bottom:5px;">Catatan Check-out (Wajib jika lebih awal)</label>
-        <textarea name="alasan" rows="3" placeholder="Masukkan catatan" style="width:100%; padding:10px;border-radius:8px;border:1px solid #ccc;"></textarea>
-
-        <div class="float-right" style="margin-top:15px;">
-            <button type="button" class="btn secondary" onclick="closeModal('checkoutModal')">Batal</button>
-            <button type="submit" class="btn">Konfirmasi Check-out</button>
-        </div>
-    </form>
-</div>
-
-
+            <div style="margin-top:20px; display:flex; justify-content:flex-end; gap:10px;">
+                <button type="button" class="btn-secondary-glass" onclick="closeModal('checkoutModal')">
+                    Batal
+                </button>
+                <button type="submit" class="btn-checkout-danger">Check-out</button>
+            </div>
+        </form>
+    </div>
 </div>
 
 @endsection
 
 @push('scripts')
-
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
-// Modal helper
-function openModal(id) {
-document.getElementById(id).style.display = 'flex';
-}
+// --- MODAL UTILS ---
+function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
-function closeModal(id) {
-document.getElementById(id).style.display = 'none';
-}
+// --- GEO LOCATION LOGIC ---
+const GEO_TIMEOUT = 8000;
 
-// Global variables for geo/wifi check (Simplified for this file, usually loaded globally)
-const WIFI_TIMEOUT_MS = 1500;
-const GEO_TIMEOUT_MS = 3000;
-
-// Fetch Location data (GPS)
 async function getGeoPosition(timeout){
-return new Promise((resolve) => {
-if (!navigator.geolocation) return resolve(null);
-let resolved = false;
-const timer = setTimeout(()=>{ if(!resolved){resolved = true; resolve(null);} }, timeout);
-navigator.geolocation.getCurrentPosition(pos => {
-if (resolved) return;
-resolved = true; clearTimeout(timer);
-resolve({lat: pos.coords.latitude, lng: pos.coords.longitude}); // FIX: lng must use longitude
-}, err=>{
-if (resolved) return;
-resolved = true; clearTimeout(timer);
-resolve(null);
-}, {enableHighAccuracy:true, maximumAge:10000, timeout:timeout});
-});
+    return new Promise((resolve) => {
+        if (!navigator.geolocation) return resolve(null);
+        let resolved = false;
+        const timer = setTimeout(()=>{ if(!resolved){resolved = true; resolve(null);} }, timeout);
+        navigator.geolocation.getCurrentPosition(pos => {
+            if (resolved) return;
+            resolved = true; clearTimeout(timer);
+            resolve({lat: pos.coords.latitude, lng: pos.coords.longitude});
+        }, err => {
+            console.error(err);
+            if (resolved) return;
+            resolved = true; clearTimeout(timer);
+            resolve(null);
+        }, {enableHighAccuracy:true, maximumAge:0, timeout:timeout});
+    });
 }
 
-// Fungsi utama untuk submit form Check-in
 async function submitCheckIn() {
-const checkinForm = document.getElementById('checkin-form');
+    const btn = document.querySelector('.btn-checkin');
+    if(!btn) return;
+    const originalText = btn.innerHTML;
+    
+    // Loading State
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Mendapatkan Lokasi...';
 
-// Tunjukkan loading atau disable tombol saat proses geo
-console.log(&quot;Mendapatkan data lokasi...&quot;);
+    // Get GPS
+    const geo = await getGeoPosition(GEO_TIMEOUT);
 
-// Dapatkan data GPS
-const geo = await getGeoPosition(GEO_TIMEOUT_MS);
-
-if (geo) {
-    document.getElementById(&#39;lat&#39;).value = geo.lat;
-    document.getElementById(&#39;lng&#39;).value = geo.lng;
-} else {
-    // Optional: Warning kalau GPS gagal, tapi biarkan backend yang validasi
-    console.warn(&quot;Gagal mendapatkan lokasi GPS.&quot;);
+    if (geo) {
+        document.getElementById('lat').value = geo.lat;
+        document.getElementById('lng').value = geo.lng;
+        document.getElementById('checkin-form').submit();
+    } else {
+        // Error State
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        Swal.fire({
+            icon: 'error',
+            title: 'Lokasi Gagal!',
+            text: 'Gagal mendapatkan GPS. Pastikan izin lokasi aktif dan sinyal bagus.',
+            background: '#1f2937', color: '#fff', confirmButtonColor: '#ef4444'
+        });
+    }
 }
-
-// Submit form check-in
-checkinForm.submit();
-
-
-}
-
 </script>
-
 @endpush

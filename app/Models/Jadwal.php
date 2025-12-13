@@ -7,15 +7,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Jadwal extends Model
 {
     protected $table = 'jadwal';
-    
+
     protected $fillable = [
         'pegawai_id',
         'shift_id',
         'tanggal',
         'keterangan',
-        // Kolom 'mulai' dan 'selesai' harus diisi manual jika tidak pakai relasi Shift
-        'mulai', 
-        'selesai', 
+        'mulai',
+        'selesai',
     ];
 
     protected $casts = [

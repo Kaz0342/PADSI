@@ -14,248 +14,208 @@ class PegawaiController extends Controller
 {
     public function index()
     {
-        // Mengambil data pegawai dengan relasi User
-        $pegawais = Pegawai::with('user')->orderBy('created_at', 'desc')->get(); 
+        // UPDATE: Eager loading user + cutis (diurutkan desc biar dapet yg terbaru)
+        // Solusi N+1 Query biar loadingnya nggak kayak siput
+        $pegawais = Pegawai::with(['user', 'cutis' => function($q){
+            $q->orderBy('id', 'desc'); 
+        }])->latest()->get();
 
+        // Hitung manual di PHP biar hemat query DB
         $aktifCount = 0;
         $cutiCount = 0;
         $nonaktifCount = 0;
 
-        foreach ($pegawais as $pegawai) {
-            if ($pegawai->status === 'Aktif') {
-                $aktifCount++;
-            } elseif ($pegawai->status === 'Nonaktif') {
-                $nonaktifCount++;
-            } elseif ($pegawai->status === 'Cuti') {
-                $cutiCount++;
-            }
+        foreach ($pegawais as $p) {
+            if ($p->status === 'Aktif') $aktifCount++;
+            if ($p->status === 'Cuti')  $cutiCount++;
+            if ($p->status === 'Nonaktif') $nonaktifCount++;
 
-            // Logic Cuti
-            if ($pegawai->status === 'Cuti') {
-                $cutiHariIni = Cuti::where('pegawai_id', $pegawai->id)
-                                         ->whereDate('tanggal_mulai', '<=', now())
-                                         ->whereDate('tanggal_selesai', '>=', now())
-                                         ->latest() 
-                                         ->first();
-                $pegawai->alasan_cuti = $cutiHariIni ? $cutiHariIni->keterangan : 'Cuti Aktif';
+            // Logic Ambil Alasan Cuti Terbaru
+            if ($p->status === 'Cuti') {
+                $activeCuti = $p->cutis->first();
+                $p->alasan_cuti = $activeCuti ? $activeCuti->alasan : '-';
             } else {
-                $pegawai->alasan_cuti = '-';
+                $p->alasan_cuti = '-';
             }
         }
-        
+
         return view('pegawai.index', compact('pegawais', 'aktifCount', 'cutiCount', 'nonaktifCount'));
     }
 
     public function create()
     {
-        // Hanya roles 'barista' dan 'kasir' yang bisa ditambahkan dari form ini
-        $roles = ['barista' => 'Barista', 'kasir' => 'Kasir'];
-        
-        // Ambil User yang belum punya data Pegawai dan BUKAN 'owner'
-        // Ini digunakan untuk opsi 'link user yang sudah ada' di form create.
+        // Dropdown role buat di view
+        $jabatan = ['barista' => 'Barista', 'kasir' => 'Kasir'];
+
+        // Ambil user nganggur
         $usersWithoutPegawai = User::whereNotIn('id', Pegawai::pluck('user_id'))
             ->where('role', '!=', 'owner')
             ->get();
-        
-        return view('pegawai.create', compact('roles', 'usersWithoutPegawai'));
+
+        return view('pegawai.create', compact('jabatan', 'usersWithoutPegawai'));
     }
 
-    /**
-     * Menyimpan Pegawai baru dengan membuat User baru. (Mode default)
-     */
+    // =========================================================================
+    // INI LOGIC STORE YANG LO MINTA (Udah gue amanin pake Transaction)
+    // =========================================================================
     public function store(Request $request)
     {
+        // 1. Validasi Input
         $validated = $request->validate([
-            'nama_lengkap' => 'required|string|max:255',
-            'username' => 'required|string|max:255|unique:users,username',
-            'password' => 'required|string|min:6',
-            // Hanya izinkan role yang valid sesuai request
-            'role_posisi' => ['required', 'string', Rule::in(['barista', 'kasir'])], 
+            'username' => 'required|unique:users,username',
+            'password' => 'required|min:5',
+            'nama'     => 'required',
+            'jabatan'  => 'required',
+            // Gue tambahin status optional biar gak error, default Aktif nanti
+            'status'   => 'nullable|string' 
         ]);
 
-        DB::beginTransaction();
+        DB::beginTransaction(); // Mulai transaksi DB biar aman
         try {
-            // 1. Buat User
+            // 2. Buat user baru & role otomatis menjadi 'pegawai'
+            // Logic ini sesuai request lo: Role dipaku jadi 'pegawai'
             $user = User::create([
-                'name' => $validated['nama_lengkap'],
                 'username' => $validated['username'],
-                'password' => Hash::make($validated['password']),
-                'role' => $validated['role_posisi'], // Role user ikut role pegawai
+                'name'     => $validated['nama'],
+                'password' => bcrypt($validated['password']), // atau Hash::make()
+                'role'     => 'pegawai',   // <-- HARGA MATI SESUAI REQUEST
             ]);
 
-            // 2. Buat Pegawai (Status Default: Aktif)
+            // 3. Buat record pegawai
             Pegawai::create([
                 'user_id' => $user->id,
-                'nama' => $validated['nama_lengkap'],
-                'jabatan' => $validated['role_posisi'],
-                'status' => 'Aktif', // Default status saat create
-            ]);
-
-            DB::commit();
-            return redirect()->route('pegawai.index')->with('success', 'Pegawai baru berhasil ditambahkan!');
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return back()->with('error', 'Gagal menambahkan pegawai: ' . $e->getMessage())->withInput();
-        }
-    }
-
-    /**
-     * Menyimpan Pegawai baru dengan LINKING ke User yang sudah ada. (Ditambahkan berdasarkan permintaan user)
-     */
-    public function storeLink(Request $request)
-    {
-        // Validasi berdasarkan blok kode yang diberikan user
-        $validated = $request->validate([
-            'user_id' => 'required|exists:users,id',
-            'nama'    => 'required|string|max:255',
-            'jabatan' => 'required|string|max:255'
-        ]);
-
-        // Verifikasi User yang dipilih
-        $user = User::findOrFail($validated['user_id']);
-
-        // Pastikan user belum terhubung ke pegawai mana pun
-        if (Pegawai::where('user_id', $user->id)->exists()) {
-            return back()->with('error', 'User ini sudah terhubung dengan data Pegawai lain.')->withInput();
-        }
-
-        DB::beginTransaction();
-        try {
-            // Update nama dan role User (user.name diupdate dengan nama Pegawai)
-            $user->name = $validated['nama'];
-            $user->role = $validated['jabatan']; 
-            $user->save();
-
-            // Buat Pegawai baru yang terhubung ke User yang sudah ada
-            Pegawai::create([
-                'user_id' => $user->id,
-                'nama' => $validated['nama'],
+                'nama'    => $validated['nama'],
                 'jabatan' => $validated['jabatan'],
-                'status' => 'Aktif',
+                'status'  => 'Aktif', // Default Aktif sesuai snippet lo
             ]);
 
-            DB::commit();
-            return redirect()->route('pegawai.index')->with('success', 'Pegawai berhasil dihubungkan ke User yang ada!');
+            DB::commit(); // Simpan permanen
+
+            return redirect()->back()->with('success', 'Pegawai berhasil ditambahkan.');
+
         } catch (\Exception $e) {
-            DB::rollBack();
-            return back()->with('error', 'Gagal menghubungkan User ke Pegawai: ' . $e->getMessage())->withInput();
+            DB::rollBack(); // Batalkan semua kalau ada error
+            return back()->with('error', 'Gagal menambahkan pegawai: ' . $e->getMessage());
         }
     }
 
-    public function edit(Pegawai $pegawai) 
+    public function edit(Pegawai $pegawai)
     {
-        $pegawai->load('user'); 
-        
-        $activeCuti = null;
-        if ($pegawai->status === 'Cuti') {
-            $activeCuti = Cuti::where('pegawai_id', $pegawai->id)
-                                 ->whereDate('tanggal_mulai', '<=', now())
-                                 ->whereDate('tanggal_selesai', '>=', now())
-                                 ->latest() 
-                                 ->first();
-        }
+        $pegawai->load('user');
 
         if (request()->wantsJson()) {
             return response()->json([
-                'id' => $pegawai->id,
-                'nama' => $pegawai->nama,
-                'jabatan' => $pegawai->jabatan,
-                'status' => $pegawai->status,
-                'user' => [
-                    'id' => $pegawai->user->id,
+                'id'       => $pegawai->id,
+                'nama'     => $pegawai->nama,
+                'jabatan'  => $pegawai->jabatan,
+                'status'   => $pegawai->status,
+                'user'     => [
+                    'id'       => $pegawai->user->id,
                     'username' => $pegawai->user->username,
-                    'role' => $pegawai->user->role,
-                ],
-                'active_cuti' => $activeCuti,
+                    'role'     => $pegawai->user->role
+                ]
             ]);
         }
+
         return abort(404);
     }
 
     public function update(Request $request, Pegawai $pegawai)
     {
-        $pegawai->load('user'); 
-
         $validated = $request->validate([
-            'nama_lengkap' => 'required|string|max:255',
-            'username' => ['required', 'string', 'max:255', Rule::unique('users', 'username')->ignore($pegawai->user->id)],
-            'password_baru' => 'nullable|string|min:6',
-            'role_posisi' => ['required', 'string', Rule::in(['owner', 'manager', 'barista', 'kasir'])],
-            'status' => ['required', 'string', Rule::in(['Aktif', 'Cuti', 'Nonaktif'])],
-            'alasan_cuti' => 'nullable|string|max:1000',
+            'nama'        => 'required|string|max:255',
+            'username'    => [
+                'required','string','max:255',
+                Rule::unique('users','username')->ignore($pegawai->user->id)
+            ],
+            'password'    => 'nullable|string|min:6',
+            'jabatan'     => ['required'],   // <-- BENAR, nama input: jabatan
+            'status'      => ['required', Rule::in(['Aktif','Cuti','Nonaktif'])],
+            'alasan_cuti' => 'nullable|string'
         ]);
-        
+
         DB::beginTransaction();
         try {
-            // Update User
-            $pegawai->user->name = $validated['nama_lengkap'];
-            $pegawai->user->username = $validated['username'];
-            $pegawai->user->role = $validated['role_posisi']; 
-            if ($validated['password_baru']) {
-                $pegawai->user->password = Hash::make($validated['password_baru']);
+
+            /* ========= UPDATE USER ========= */
+            $userData = [
+                'name'     => $validated['nama'],
+                'username' => $validated['username'],
+                'role'     => strtolower($validated['jabatan']), // <-- FIXED
+            ];
+
+            if (!empty($validated['password'])) {
+                $userData['password'] = Hash::make($validated['password']);
             }
-            $pegawai->user->save();
 
-            // Update Pegawai
-            $pegawai->nama = $validated['nama_lengkap'];
-            $pegawai->jabatan = $validated['role_posisi'];
-            $pegawai->status = $validated['status'];
-            $pegawai->save();
+            $pegawai->user->update($userData);
 
-            // Logic Cuti (Create/Update/End)
+            /* ========= UPDATE PEGAWAI ========= */
+            $pegawai->update([
+                'nama'    => $validated['nama'],
+                'jabatan' => $validated['jabatan'], // <-- FIXED
+                'status'  => $validated['status'],
+            ]);
+
+            /* ========= LOGIC CUTI ========= */
             if ($validated['status'] === 'Cuti') {
-                $existingCuti = Cuti::where('pegawai_id', $pegawai->id)
-                                         ->whereDate('tanggal_mulai', '<=', now())
-                                         ->whereDate('tanggal_selesai', '>=', now())
-                                         ->first();
-                if (!$existingCuti) {
+
+                // Cari cuti aktif
+                $existing = Cuti::where('pegawai_id', $pegawai->id)
+                        ->whereDate('tanggal_mulai', '<=', now())
+                        ->whereDate('tanggal_selesai', '>=', now())
+                        ->first();
+
+                if (!$existing) {
                     Cuti::create([
                         'pegawai_id' => $pegawai->id,
-                        'tanggal_mulai' => now()->toDateString(), 
-                        'tanggal_selesai' => now()->addWeek()->toDateString(), // Default 1 minggu
-                        'keterangan' => $validated['alasan_cuti'] ?? 'Cuti',
-                        'status' => 'Disetujui',
+                        'tanggal_mulai' => now()->toDateString(),
+                        'tanggal_selesai' => now()->addWeek()->toDateString(),
+                        'jenis' => 'Cuti',
+                        'alasan' => $validated['alasan_cuti'] ?? '-',
+                        'status' => 'approved'
                     ]);
                 } else {
-                    $existingCuti->keterangan = $validated['alasan_cuti'] ?? 'Cuti';
-                    $existingCuti->save();
+                    $existing->update([
+                        'alasan' => $validated['alasan_cuti'] ?? $existing->alasan
+                    ]);
                 }
+
             } else {
-                // Jika status berubah dari Cuti ke Aktif/Nonaktif, akhiri cuti
+                // Set cuti selesai jika status bukan cuti
                 Cuti::where('pegawai_id', $pegawai->id)
                     ->whereDate('tanggal_selesai', '>=', now())
-                    ->update(['tanggal_selesai' => now()->subDay()->toDateString()]); 
+                    ->update(['tanggal_selesai' => now()->subDay()->toDateString()]);
             }
 
             DB::commit();
             return redirect()->route('pegawai.index')->with('success', 'Data pegawai berhasil diperbarui!');
+
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', 'Gagal memperbarui pegawai: ' . $e->getMessage())->withInput();
+            return back()->with('error', $e->getMessage());
         }
     }
 
     public function destroy(Request $request, Pegawai $pegawai)
     {
-        $pegawai->load('user'); 
-
         $request->validate([
-            'alasan_penghapusan' => 'required|string|max:1000',
+            'alasan_penghapusan' => 'required|string'
         ]);
 
         DB::beginTransaction();
         try {
-            // Hapus Relasi (Pastikan Model Pegawai punya relasi ini)
-            $pegawai->absensis()->delete(); 
+            $pegawai->absensis()->delete();
             $pegawai->cutis()->delete();
             $pegawai->user()->delete();
             $pegawai->delete();
 
             DB::commit();
-            return redirect()->route('pegawai.index')->with('success', 'Pegawai berhasil dihapus permanen.');
+            return redirect()->route('pegawai.index')->with('success','Pegawai berhasil dihapus.');
+
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', 'Gagal menghapus pegawai: ' . $e->getMessage());
+            return back()->with('error',$e->getMessage());
         }
     }
 }

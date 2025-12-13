@@ -3,100 +3,206 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\Shift;
 use Illuminate\Support\Facades\DB;
-use App\Models\Jadwal; // Diperlukan untuk cek relasi di destroy
+use Carbon\Carbon;
+use App\Models\Pegawai;
+use App\Models\TanggalKerja;
+use App\Models\Jadwal;
+use App\Models\Shift;
 
 class ShiftController extends Controller
 {
     /**
-     * Menampilkan daftar shift.
+     * TAMPILAN JADWAL GANTT MINGGUAN (Senin - Minggu)
      */
-    public function index()
+    public function index(Request $req)
     {
-        $shifts = Shift::all();
-        // FIX KRUSIAL: Mengubah 'shifts.index' menjadi 'shift.index'
-        return view('shift.index', compact('shifts'));
-    }
+        Carbon::setLocale('id');
 
-    /**
-     * Menyimpan shift baru.
-     */
-    public function store(Request $request)
-    {
-        $request->validate([
-            'nama' => 'required|string|max:255',
-            'start_time' => 'required|date_format:H:i',
-            'end_time' => 'required|date_format:H:i', 
-        ]);
-
-        try {
+        // 1) auto-create master shift jika kosong (safety)
+        if (Shift::count() === 0) {
             Shift::create([
-                'nama' => $request->nama,
-                'start_time' => $request->start_time,
-                'end_time' => $request->end_time,
+                'nama' => 'Shift Default',
+                'start_time' => '16:00:00',
+                'end_time' => '23:00:00',
             ]);
-
-            return redirect()->route('shifts.index')->with('success', 'Shift baru berhasil ditambahkan.');
-        } catch (\Exception $e) {
-            return back()->with('error', 'Gagal menambahkan shift: ' . $e->getMessage());
         }
+
+        // 2) tentukan minggu yang aktif (monday start)
+        $monday = $req->has('week_start')
+            ? Carbon::parse($req->week_start)->startOfWeek(Carbon::MONDAY)
+            : Carbon::today()->startOfWeek(Carbon::MONDAY);
+
+        // build array tanggal Senin-Minggu
+        $dates = [];
+        for ($i = 0; $i < 7; $i++) {
+            $d = $monday->copy()->addDays($i);
+            $dates[] = [
+                'date' => $d->toDateString(),
+                'label' => $d->format('d'),
+                'day_name' => $d->isoFormat('dddd'),
+            ];
+        }
+
+        // 3) pastikan row tanggal_kerja ada untuk tiap tanggal (auto create)
+        $dateStrings = array_column($dates, 'date');
+
+        $existing = TanggalKerja::whereIn('tanggal', $dateStrings)
+            ->get()
+            ->keyBy(fn($t) => $t->tanggal->toDateString());
+
+        $toCreate = [];
+        foreach ($dateStrings as $ds) {
+            if (!isset($existing[$ds])) {
+                $toCreate[] = [
+                    'tanggal' => $ds,
+                    'day_name' => TanggalKerja::dayNameFromDate($ds),
+                    'is_open' => 1,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+        }
+        if (!empty($toCreate)) {
+            TanggalKerja::insert($toCreate);
+            $existing = TanggalKerja::whereIn('tanggal', $dateStrings)
+                ->get()
+                ->keyBy(fn($t) => $t->tanggal->toDateString());
+        }
+
+        // 4) ambil pegawai + jadwal minggu ini (eager load jadwals filtered)
+        $pegawais = Pegawai::with([
+            'jadwals' => fn($q) => $q->whereIn('tanggal', $dateStrings)
+        ])->orderBy('nama')->get();
+
+        // 5) hitung ringkasan (jumlah shift per pegawai di minggu ini)
+        $summary = [];
+        foreach ($pegawais as $p) {
+            // karena kita eager-load jadwals yang telah difilter, cukup count koleksi
+            $summary[$p->id] = $p->jadwals?->count() ?? 0;
+        }
+
+        return view('shifts.index', [
+            'pegawais' => $pegawais,
+            'dates' => $dates,
+            'tanggalKerjaRows' => $existing,
+            'monday' => $monday,
+            'summary' => $summary,
+        ]);
     }
 
     /**
-     * Mengambil data shift untuk modal edit (JSON).
+     * TOGGLE JADWAL KERJA (single click)
      */
-    public function edit(Shift $shift)
+    public function toggle(Request $req)
     {
-        if (request()->wantsJson()) {
-            return response()->json($shift);
-        }
-        return redirect()->route('shifts.index');
-    }
-
-    /**
-     * Memperbarui data shift.
-     */
-    public function update(Request $request, Shift $shift)
-    {
-        $request->validate([
-            'nama' => 'required|string|max:255',
-            'start_time' => 'required|date_format:H:i',
-            'end_time' => 'required|date_format:H:i',
+        $req->validate([
+            'pegawai_id' => 'required|exists:pegawai,id',
+            'tanggal' => 'required|date',
         ]);
 
-        try {
-            $shift->update([
-                'nama' => $request->nama,
-                'start_time' => $request->start_time,
-                'end_time' => $request->end_time,
-            ]);
+        $pegawaiId = $req->pegawai_id;
+        $tanggal = Carbon::parse($req->tanggal)->toDateString();
 
-            return redirect()->route('shifts.index')->with('success', 'Data shift berhasil diperbarui.');
-        } catch (\Exception $e) {
-            return back()->with('error', 'Gagal memperbarui shift: ' . $e->getMessage());
+        // validasi tanggal buka
+        $tgl = TanggalKerja::firstWhere('tanggal', $tanggal);
+        if (!$tgl || !$tgl->is_open) {
+            return response()->json(['message' => 'Tanggal tutup atau tidak valid'], 422);
+        }
+
+        // cek existing jadwal di tabel 'jadwal'
+        $existing = Jadwal::where('pegawai_id', $pegawaiId)
+            ->where('tanggal', $tanggal)
+            ->first();
+
+        if ($existing) {
+            $existing->delete();
+            return response()->json(['status' => 'removed', 'message' => 'Berhasil menghapus jadwal']);
+        }
+
+        // ambil shift default yang sudah pasti ada (index auto-create)
+        $shiftDefault = Shift::first();
+        if (!$shiftDefault) {
+            return response()->json(['message' => 'Data master shift kosong'], 500);
+        }
+
+        $jadwal = Jadwal::create([
+            'pegawai_id' => $pegawaiId,
+            'shift_id' => $shiftDefault->id,
+            'tanggal' => $tanggal,
+            'keterangan' => null,
+        ]);
+
+        return response()->json(['status' => 'added', 'message' => 'Berhasil menambah jadwal', 'data' => $jadwal]);
+    }
+
+    /**
+     * SIMPAN BATCH (save button)
+     * Expects payload: { shifts: [ { pegawai_id, tanggal, assign (1|0) }, ... ] }
+     */
+    public function saveBatch(Request $request)
+    {
+        $request->validate([
+            'shifts' => 'required|array',
+            'shifts.*.pegawai_id' => 'required|exists:pegawai,id',
+            'shifts.*.tanggal' => 'required|date',
+            'shifts.*.assign' => 'required|in:0,1',
+        ]);
+
+        $defaultShift = Shift::first();
+        if (!$defaultShift) {
+            return response()->json(['message' => 'GAGAL: Tabel Master Shift masih kosong.'], 500);
+        }
+
+        DB::beginTransaction();
+        try {
+            foreach ($request->shifts as $s) {
+                $pegawaiId = $s['pegawai_id'];
+                $tanggal = Carbon::parse($s['tanggal'])->toDateString();
+                $assign = intval($s['assign']);
+
+                // Skip if tanggal tutup
+                $tglRow = TanggalKerja::firstWhere('tanggal', $tanggal);
+                if ($tglRow && !$tglRow->is_open) {
+                    // jika toko tutup skip perubahan untuk tanggal ini
+                    continue;
+                }
+
+                if ($assign === 1) {
+                    Jadwal::updateOrCreate(
+                        [
+                            'pegawai_id' => $pegawaiId,
+                            'tanggal' => $tanggal
+                        ],
+                        [
+                            'shift_id' => $defaultShift->id,
+                            'keterangan' => null
+                        ]
+                    );
+                } else {
+                    Jadwal::where('pegawai_id', $pegawaiId)
+                        ->where('tanggal', $tanggal)
+                        ->delete();
+                }
+            }
+
+            DB::commit();
+            return response()->json(['message' => 'Jadwal berhasil disimpan!']);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Server Error: ' . $e->getMessage()], 500);
         }
     }
 
     /**
-     * Menghapus shift.
+     * REDIRECT KE MINGGU LAIN
      */
-    public function destroy(Shift $shift)
+    public function weekJson(Request $req)
     {
-        try {
-            // FIX: Cek apakah shift dipakai di jadwal (Gue asumsikan model Shift punya relasi hasMany Jadwal)
-            // Kalau lo belum ada Jadwal::class, tolong tambahin importnya!
-            // Lo juga harus memastikan model Shift punya method 'jadwals()'
-            if (Jadwal::where('shift_id', $shift->id)->count() > 0) {
-                 return back()->with('error', 'Gagal hapus: Shift ini sedang digunakan dalam jadwal karyawan.');
-            }
-            // Logic dari lo sebelumnya: if ($shift->jadwals()->count() > 0) {
-            // Asumsi lo salah karena jadwals() belum di-load, lebih aman pakai query langsung.
+        $start = $req->week_start
+            ? Carbon::parse($req->week_start)->startOfWeek(Carbon::MONDAY)
+            : Carbon::today()->startOfWeek(Carbon::MONDAY);
 
-            $shift->delete();
-            return redirect()->route('shifts.index')->with('success', 'Shift berhasil dihapus.');
-        } catch (\Exception $e) {
-            return back()->with('error', 'Gagal menghapus shift: ' . $e->getMessage());
-        }
+        return redirect()->route('shifts.index', ['week_start' => $start->toDateString()]);
     }
 }
