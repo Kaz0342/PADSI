@@ -4,17 +4,24 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Session;
 use Carbon\Carbon;
+
 use App\Models\Absensi;
-use App\Models\Pegawai; // Import Pegawai untuk memastikan user punya data pegawai
+use App\Models\Pegawai;
+use App\Models\TanggalKerja;
+use App\Services\ShiftService;
 
 class AuthController extends Controller
 {
-    // --- CONFIG LOKASI DAN WIFI ---
-    private $wifiAllowed = ['matari', 'matari_wifi', 'matari5g'];
-    private $latKedai = -7.7775846;
-    private $lngKedai = 110.395392;
-    private $maxDistance = 200; // Toleransi jarak maksimal dari kedai (meter)
+    /* ============================================================
+       KONFIGURASI LOKASI & WIFI
+    ============================================================ */
+    private bool $devBypass = true;
+    private int $maxDistance = 200;
+
+    private float $latKedai = -7.7775846;
+    private float $lngKedai = 110.395392;
 
     public function showLogin()
     {
@@ -23,95 +30,168 @@ class AuthController extends Controller
 
     public function login(Request $request)
     {
-        // DEV bypass WiFi/GPS sementara. Di-set false untuk production.
-        $devBypass = true; 
-
-        // Ambil data dari hidden fields di form login (dari client JS)
-        $wifi = strtolower($request->wifi_name ?? '');
-        $lat  = $request->lat; // Menggunakan 'lat' sesuai input di form HTML sebelumnya
-        $lng  = $request->lng; // Menggunakan 'lng' sesuai input di form HTML sebelumnya
-
-        if (!$devBypass) {
-            // Cek WiFi lokal
-            if (!in_array($wifi, $this->wifiAllowed)) {
-                return back()->with('error', 'Anda harus terhubung ke WiFi Matari untuk absensi.');
-            }
-
-            // Cek Jarak GPS
-            if (!$lat || !$lng) {
-                 return back()->with('error', 'Gagal mendapatkan data lokasi GPS. Cek izin lokasi.');
-            }
-            
-            $distance = $this->distance($lat, $lng, $this->latKedai, $this->lngKedai);
-            if ($distance > $this->maxDistance) {
-                return back()->with('error', 'Anda berada di luar area Kedai Matari (Jarak: ' . round($distance) . 'm).');
-            }
-        }
-
-        // --- VALIDASI DAN ATTEMPT LOGIN ---
+        /* ==========================
+           1. VALIDASI LOGIN
+        ========================== */
         $creds = $request->validate([
             'username' => 'required',
             'password' => 'required'
         ]);
-        
-        if (!auth()->attempt($creds))
-            return back()->with('error','Username atau password salah.');
 
-        $user = auth()->user();
+        /* ==========================
+           2. WIFI & GPS (OPTIONAL)
+        ========================== */
+        if (!$this->devBypass) {
+            if ($request->wifi_connected != 1) {
+                return back()->with('error', 'Harus terhubung ke WiFi Kedai.');
+            }
 
-        if ($user->role === 'owner')
-            return redirect()->route('dashboard');
+            if (!$request->lat || !$request->lng) {
+                return back()->with('error', 'GPS tidak terbaca.');
+            }
 
-        // --- AUTO CHECK-IN setelah login ---
-        $pegawai = $user->pegawai;
-        
-        if ($pegawai) {
-            $today = Carbon::today()->toDateString();
+            $distance = $this->distance(
+                $request->lat,
+                $request->lng,
+                $this->latKedai,
+                $this->lngKedai
+            );
 
-            // Cek apakah sudah ada sesi check-in hari ini
-            $sudahCheckIn = Absensi::where('pegawai_id', $pegawai->id)
-                                 ->whereDate('tanggal', $today)
-                                 ->whereNull('check_out_at')
-                                 ->exists();
-
-            if (!$sudahCheckIn) {
-                // Gunakan Carbon::now('Asia/Jakarta') untuk konsistensi timezone
-                Absensi::create([
-                    'pegawai_id' => $pegawai->id,
-                    'tanggal'    => $today,
-                    'check_in_at'=> Carbon::now('Asia/Jakarta'),
-                    'lokasi_lat' => $lat,
-                    'lokasi_long'=> $lng,
-                    'status_kehadiran' => 'hadir' // Status awal akan diperbarui di AbsensiController jika perlu
-                ]);
+            if ($distance > $this->maxDistance) {
+                return back()->with('error', 'Di luar area kedai.');
             }
         }
-        
-        return redirect()->route('dashboard');
-    }
 
-    /**
-     * Menghitung jarak antara dua koordinat GPS (Haversine formula).
-     * Hasil dalam meter.
-     */
-    public function distance($lat1, $lon1, $lat2, $lon2) {
-        $earth = 6371000; // Radius Bumi dalam meter
-        $dLat = deg2rad($lat2 - $lat1);
-        $dLon = deg2rad($lon2 - $lon1);
+        /* ==========================
+           3. AUTH
+        ========================== */
+        if (!Auth::attempt($creds)) {
+            return back()->with('error', 'Username atau password salah.');
+        }
 
-        $a = sin($dLat / 2)**2 + 
-             cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
-             sin($dLon / 2)**2;
+        $user = Auth::user();
 
-        return $earth * 2 * atan2(sqrt($a), sqrt(1 - $a));
+        /* ==========================
+           4. OWNER → DASHBOARD
+        ========================== */
+        if ($user->role === 'owner') {
+            return redirect()->route('dashboard');
+        }
+
+        /* ==========================
+           5. PEGAWAI FLOW
+        ========================== */
+        $pegawai = $user->pegawai;
+        if (!$pegawai) {
+            Auth::logout();
+            return redirect()->route('login')->with('error', 'Akun tidak terhubung ke pegawai.');
+        }
+
+        $today = Carbon::today('Asia/Jakarta');
+        $now   = Carbon::now('Asia/Jakarta');
+
+        /* ==========================
+           SATPAM UTAMA:
+           SUDAH ADA ABSENSI?
+        ========================== */
+        $existing = Absensi::where('pegawai_id', $pegawai->id)
+            ->where('tanggal', $today->toDateString())
+            ->first();
+
+        if ($existing) {
+            return redirect()->route('dashboard');
+        }
+
+        /* ==========================
+           TOKO BUKA?
+        ========================== */
+        $tglKerja = TanggalKerja::where('tanggal', $today->toDateString())->first();
+        if (!$tglKerja || !$tglKerja->is_open) {
+            return redirect()->route('dashboard')
+                ->with('info', 'Hari ini toko tutup.');
+        }
+
+        /* ==========================
+           HARI SENIN (FREE PASS)
+        ========================== */
+        if ($today->isMonday()) {
+            Absensi::create([
+                'pegawai_id'       => $pegawai->id,
+                'tanggal'          => $today->toDateString(),
+                'check_in_at'      => $now,
+                'status_kehadiran' => 'hadir',
+                'tipe_sesi'        => 'normal',
+            ]);
+
+            return redirect()->route('dashboard')
+                ->with('success', 'Auto hadir (Senin).');
+        }
+
+        /* ==========================
+           CEK JADWAL SHIFT
+        ========================== */
+        $shift = ShiftService::getShiftForPegawai($pegawai->id);
+
+        if ($shift) {
+            // cek jam & status
+            $start = Carbon::parse($today->toDateString().' '.$shift->start_time);
+            $diff  = $start->diffInMinutes($now, false);
+
+            $status = $diff <= 0
+                ? 'hadir'
+                : ($diff <= 30 ? 'terlambat' : 'alpha');
+
+            Absensi::create([
+                'pegawai_id'       => $pegawai->id,
+                'tanggal'          => $today->toDateString(),
+                'check_in_at'      => $now,
+                'status_kehadiran' => $status,
+                'tipe_sesi'        => 'normal',
+            ]);
+
+            return redirect()->route('dashboard')
+                ->with('success', 'Check-in otomatis: '.ucfirst($status));
+        }
+
+        /* ==========================
+           TIDAK ADA JADWAL → PENGGANTI
+        ========================== */
+        $abs = Absensi::create([
+            'pegawai_id'       => $pegawai->id,
+            'tanggal'          => $today->toDateString(),
+            'check_in_at'      => $now,
+            'status_kehadiran' => 'hadir',
+            'tipe_sesi'        => 'pengganti',
+        ]);
+
+        Session::put('absensi_id', $abs->id);
+
+        return redirect()->route('absensi.pengganti.form')
+            ->with('info', 'Anda tidak terjadwal hari ini.');
     }
 
     public function logout(Request $request)
     {
         Auth::logout();
-        // Logika session invalidation yang lebih aman
         $request->session()->invalidate();
         $request->session()->regenerateToken();
         return redirect()->route('login');
+    }
+
+    /* ============================================================
+       HAVERSINE
+    ============================================================ */
+    private function distance($lat1, $lon1, $lat2, $lon2)
+    {
+        $earth = 6371000;
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLon = deg2rad($lon2 - $lon1);
+
+        $a = sin($dLat / 2) ** 2 +
+             cos(deg2rad($lat1)) *
+             cos(deg2rad($lat2)) *
+             sin($dLon / 2) ** 2;
+
+        return $earth * 2 * atan2(sqrt($a), sqrt(1 - $a));
     }
 }

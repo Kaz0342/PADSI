@@ -25,7 +25,8 @@ class Absensi extends Model
         'lokasi_long',
         'location_info',
         'status_kehadiran',
-        'catatan', // Kolom yang dipake di checkOut
+        'tipe_sesi',
+        'catatan',
         'absensi_pengganti_id',
     ];
 

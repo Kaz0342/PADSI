@@ -18,10 +18,12 @@ return new class extends Migration {
             $table->string('location_info')->nullable();
 
             $table->enum('status_kehadiran', [
-                'hadir', 'terlambat', 'alpha', 'sakit', 'izin'
+                'hadir', 'terlambat', 'alpha', 'sakit', 'izin', 'pengganti'
             ])->default('hadir');
 
             $table->text('catatan')->nullable();
+
+            $table->enum('tipe_sesi', ['normal', 'pengganti'])->default('normal');
 
             $table->unsignedBigInteger('absensi_pengganti_id')->nullable();
 

@@ -245,16 +245,10 @@
                 <a href="{{ route('pos.import.form') }}" class="{{ request()->is('import/csv') ? 'active' : '' }}">
                     <i class="fa-solid fa-file-csv"></i> POS Data
                 </a>
-                <a href="{{ route('inventory.index') }}" class="{{ request()->is('inventory*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-boxes-stacked"></i> Inventory
-                </a>
             @else
                 {{-- EMPLOYEE NAV --}}
                 <a href="{{ route('dashboard') }}" class="{{ request()->is('dashboard') ? 'active' : '' }}">
                     <i class="fa-solid fa-house"></i> Home
-                </a>
-                <a href="{{ route('inventory.index') }}" class="{{ request()->is('inventory*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-boxes-stacked"></i> Inventory
                 </a>
                 <a href="{{ route('absensi.index') }}" class="{{ request()->is('absensi') ? 'active' : '' }}">
                     <i class="fa-solid fa-clock-rotate-left"></i> Riwayat Saya

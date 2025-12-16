@@ -113,21 +113,6 @@
 .dot-red { background: #f87171; }
 .cell-info { font-size: 11px; color: var(--text-mid); font-weight: 600; text-align: center; }
 
-/* POS Pending Style */
-.pos-pending {
-    background: rgba(250, 204, 21, 0.1) !important;
-    border: 2px solid #facc15 !important;
-    animation: pulse 2s infinite;
-}
-.pending-badge {
-    position: absolute; top: 5px; right: 5px;
-    background: #facc15; color: #000;
-    padding: 2px 6px; border-radius: 6px;
-    font-size: 9px; font-weight: 800; text-transform: uppercase;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-}
-@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(250, 204, 21, 0); } 100% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0); } }
-
 /* Legend */
 .legend { display: flex; justify-content: center; gap: 20px; margin-top: 20px; color: var(--text-mid); font-size: 12px; font-weight: 600; }
 
@@ -262,12 +247,18 @@ function changeMonth(dir){
     fetchCalendar(currentMonth, currentYear);
 }
 
+// 🔥 FUNGSI FETCH FIX (Handling Structure)
 function fetchCalendar(month, year){
     loader.style.display = 'flex';
+
     fetch(`/api/absensi/rekap/calendar?month=${month}&year=${year}`)
         .then(r => r.json())
         .then(data => {
-            renderCalendar(data);
+            // Kita jaga-jaga: kalo backend kirim object {calendar: [...]}, kita ambil .calendar
+            // Kalo backend kirim array langsung [...], kita ambil langsung
+            const days = data.calendar || data || [];
+            
+            renderCalendar(days, month, year);
             loader.style.display = 'none';
         })
         .catch(err => {
@@ -277,70 +268,55 @@ function fetchCalendar(month, year){
         });
 }
 
-function renderCalendar(data){
-    currentMonthLabel.innerText = data.currentMonthName;
+// 🔥 FUNGSI RENDER FIX (Auto Labeling)
+function renderCalendar(days, month, year){
+    // Set label bulan (Pake JS lokal biar gak perlu nunggu data backend)
+    const date = new Date(year, month - 1, 1);
+    currentMonthLabel.innerText = date.toLocaleDateString('id-ID', {
+        month: 'long',
+        year: 'numeric'
+    });
+
+    // Reset grid (Keep Header)
     const headers = Array.from(calendarGrid.children).slice(0, 7);
-    calendarGrid.innerHTML = "";
+    calendarGrid.innerHTML = '';
     headers.forEach(h => calendarGrid.appendChild(h));
 
-    (data.calendar || []).forEach((day, idx) => {
-        const cell = document.createElement("div");
-        let classes = "calendar-cell";
-        
-        if (day.isCurrentMonth) classes += " is-current";
-        else classes += " other-month not-current-month"; // not-current-month disable click css
+    if (!Array.isArray(days)) {
+        console.error("Format data kalender salah:", days);
+        return;
+    }
 
-        if (day.isToday) classes += " today-cell";
-        
+    days.forEach(day => {
+        const cell = document.createElement('div');
+
+        let classes = 'calendar-cell';
+        if (!day.isCurrentMonth) classes += ' not-current-month';
+        if (day.isToday) classes += ' today-cell';
+
         cell.className = classes;
-        cell.style.animation = `fadeIn 0.3s ease forwards ${idx * 0.01}s`;
-        cell.style.opacity = '0';
-
-        let dotsHtml = '<div class="cell-dots">';
-        (day.dots || []).forEach(d => { if(d) dotsHtml += `<span class="dot-small dot-${d}"></span>`; });
-        dotsHtml += "</div>";
+        
+        // Render Cell Content
+        // Label tanggal kita ambil dari 'label' (kiriman backend) atau fallback ke 'date'
+        const label = day.label ? String(day.label).padStart(2,'0') : day.date.split('-')[2];
 
         cell.innerHTML = `
-            <div class="cell-date">${day.label}</div>
-            ${dotsHtml}
-            <div class="cell-info">${day.summary || ''}</div>
+            <div class="cell-date">${label}</div>
+            <div class="cell-dots">
+                ${day.hadir > 0 ? '<span class="dot-small dot-green"></span>' : ''}
+                ${day.terlambat > 0 ? '<span class="dot-small dot-yellow"></span>' : ''}
+                ${day.alpha > 0 ? '<span class="dot-small dot-red"></span>' : ''}
+            </div>
         `;
 
         if (day.isCurrentMonth) {
             cell.dataset.date = day.date;
-            cell.onclick = () => {
-                document.querySelectorAll(".calendar-cell").forEach(c => c.classList.remove("selected"));
-                cell.classList.add("selected");
-                openDayDetail(cell);
-            };
-        }
-
-        // POS Pending Logic
-        if (data.pos_pending && data.pos_pending.includes(day.date)) {
-            cell.classList.add("pos-pending");
-            cell.innerHTML += `<div class="pending-badge">NEW POS</div>`;
-            cell.onclick = () => window.location.href = `/absensi/rekap/verify/${day.date}`;
+            cell.onclick = () => openDayDetail(cell);
         }
 
         calendarGrid.appendChild(cell);
     });
-
-    // Fix empty grid
-    const totalCells = calendarGrid.children.length - 7;
-    const remainder = totalCells % 7;
-    if (remainder !== 0) {
-        for (let i = 0; i < (7 - remainder); i++) {
-            const div = document.createElement("div");
-            div.className = "calendar-cell not-current-month";
-            calendarGrid.appendChild(div);
-        }
-    }
 }
-
-// Tambah keyframe manual
-const styleSheet = document.createElement("style");
-styleSheet.innerText = `@keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }`;
-document.head.appendChild(styleSheet);
 
 function openDayDetail(el){
     const date = el.dataset.date;

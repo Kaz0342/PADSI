@@ -3,14 +3,18 @@
 namespace App\Http\Middleware;
 
 use Closure;
+use Illuminate\Http\Request;
 
 class Owner
 {
-    public function handle($request, Closure $next)
+    public function handle(Request $request, Closure $next)
     {
-        if (session('user')->role !== 'Owner') {
-            return redirect('/dashboard')->with('error', 'Tidak punya akses');
+        $user = auth()->user();
+
+        if (!$user || $user->role !== 'owner') {
+            abort(403, 'Akses khusus owner.');
         }
+
         return $next($request);
     }
 }

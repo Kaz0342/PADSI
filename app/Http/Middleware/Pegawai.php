@@ -3,14 +3,18 @@
 namespace App\Http\Middleware;
 
 use Closure;
+use Illuminate\Http\Request;
 
-class Owner
+class Pegawai
 {
-    public function handle($request, Closure $next)
+    public function handle(Request $request, Closure $next)
     {
-        if (session('user')->role !== 'Pegawai') {
-            return redirect('/dashboard')->with('error', 'Tidak punya akses');
+        $user = auth()->user();
+
+        if (!$user || $user->role !== 'pegawai') {
+            abort(403, 'Akses khusus pegawai.');
         }
+
         return $next($request);
     }
 }

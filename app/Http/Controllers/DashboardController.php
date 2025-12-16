@@ -3,360 +3,197 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Session;
-
 use Carbon\Carbon;
 
-// Models
+// MODELS
 use App\Models\Pegawai;
 use App\Models\Absensi;
 use App\Models\Cuti;
-use App\Models\Jadwal;
-use App\Models\PosTransactionTemp;
-
-// Service
-use App\Services\ShiftService;
+use App\Models\AbsensiPengganti;
+use App\Models\Shift; 
 
 class DashboardController extends Controller
 {
-    /**
-     * Dashboard landing (owner / pegawai)
-     */
-    public function index(Request $request)
+    /* ==========================================================
+       DASHBOARD ENTRY
+    ========================================================== */
+    public function index()
     {
         $user = Auth::user();
-        if (!$user) {
+        if (!$user) return redirect()->route('login');
+
+        return $user->role === 'owner'
+            ? $this->ownerDashboard()
+            : $this->pegawaiDashboard();
+    }
+
+    /* ==========================================================
+       OWNER DASHBOARD
+    ========================================================== */
+    protected function ownerDashboard()
+    {
+        $today = Carbon::today('Asia/Jakarta')->toDateString();
+
+        return view('dashboard.owner', [
+            'karyawanAktif' => Pegawai::where('status', 'Aktif')->count(),
+            'karyawanCuti'  => Cuti::whereDate('tanggal_mulai', '<=', $today)
+                                    ->whereDate('tanggal_selesai', '>=', $today)
+                                    ->count(),
+            'hadirHariIni'  => Absensi::where('tanggal', $today)
+                                    ->whereIn('status_kehadiran', ['hadir','terlambat','pengganti'])
+                                    ->distinct('pegawai_id')
+                                    ->count('pegawai_id'),
+            'stokRendah'    => Schema::hasTable('stock_dummy')
+                                    ? DB::table('stock_dummy')->where('qty','<=',3)->count()
+                                    : 0
+        ]);
+    }
+
+    /* ==========================================================
+       PEGAWAI DASHBOARD
+    ========================================================== */
+    protected function pegawaiDashboard()
+    {
+        $pegawai = Auth::user()->pegawai;
+        if (!$pegawai) {
             return redirect()->route('login');
         }
 
-        // -------------------------
-        // Owner dashboard
-        // -------------------------
-        if ($user->role === 'owner') {
-            $karyawanAktif = Pegawai::where('status', 'Aktif')->count();
+        $today = Carbon::today('Asia/Jakarta')->toDateString();
 
-            $karyawanCuti = Cuti::whereDate('tanggal_mulai', '<=', Carbon::today())
-                                ->whereDate('tanggal_selesai', '>=', Carbon::today())
-                                ->count();
+        $todayAbsensi = Absensi::where('pegawai_id', $pegawai->id)
+            ->where('tanggal', $today)
+            ->latest()
+            ->first();
 
-            $hadirHariIni = Absensi::where('tanggal', Carbon::today()->toDateString())
-                                   ->distinct('pegawai_id')
-                                   ->count('pegawai_id');
-
-            $stokRendah = Schema::hasTable('stock_dummy')
-                ? DB::table('stock_dummy')->where('qty', '<=', 3)->count()
-                : 0;
-
-            return view('dashboard.owner', compact(
-                'user', 'karyawanAktif', 'karyawanCuti', 'hadirHariIni', 'stokRendah'
-            ));
-        }
-
-        // -------------------------
-        // Pegawai dashboard
-        // -------------------------
-        $pegawai = $user->pegawai;
-        if (!$pegawai) {
-            return redirect()->route('login')->with('error', 'Akun tidak terhubung ke data pegawai.');
-        }
-
-        // Ambil sesi aktif (belum checkout)
         $active = Absensi::where('pegawai_id', $pegawai->id)
-                    ->whereNull('check_out_at')
-                    ->latest()
-                    ->first();
+            ->whereNull('check_out_at')
+            ->latest()
+            ->first();
 
-        // Ambil shift via service (single source of truth)
-        $shift = ShiftService::getShiftForPegawai($pegawai->id, $active);
-
-        // Tentukan base date untuk menampilkan riwayat (important for overnight shift)
-        $shiftDateObj = $active
-            ? Carbon::parse($active->check_in_at)->startOfDay('Asia/Jakarta')
-            : Carbon::today('Asia/Jakarta')->startOfDay();
-
-        // Riwayat sesi berdasarkan shiftDateObj (agar shift malam tetap muncul)
         $hadirSesi = Absensi::where('pegawai_id', $pegawai->id)
-            ->whereBetween('check_in_at', [
-                $shiftDateObj->copy()->startOfDay(),
-                $shiftDateObj->copy()->endOfDay(),
-            ])
-            ->orderBy('check_in_at', 'asc')
+            ->where('tanggal', $today)
+            ->orderBy('check_in_at')
             ->get();
-
-        // Default status vars untuk view
-        $mustPengganti = false;
-        $canCheckIn = false;
-        $statusAbsen = 'Belum Absen';
-
-        // Vars for checkout modal
-        $isEarly = false;
-        $endTimeFormatted = null;
-
-        // If there's an active session -> user is "on duty"
-        if ($active) {
-            $statusAbsen = ucfirst($active->status_kehadiran ?? 'hadir');
-
-            // --- [FIX] LOGIKA HITUNG JAM PULANG ---
-            // Kita hitung manual disini biar tidak error panggil method service yg tidak ada
-            if ($shift) {
-                $start = Carbon::parse($shift->start_time, 'Asia/Jakarta');
-                $end   = Carbon::parse($shift->end_time, 'Asia/Jakarta');
-                
-                // Base date ikut tanggal check-in
-                $base = Carbon::parse($active->check_in_at)->startOfDay('Asia/Jakarta');
-
-                // Logic shift kalong (nyebrang hari)
-                if ($end->lessThan($start)) {
-                    $endTime = $base->copy()->addDay()->setTime($end->hour, $end->minute);
-                } else {
-                    $endTime = $base->copy()->setTime($end->hour, $end->minute);
-                }
-
-                $now = Carbon::now('Asia/Jakarta');
-                $isEarly = $now->lessThan($endTime);
-                $endTimeFormatted = $endTime->format('H:i');
-            }
-            // -------------------------------------
-
-        } else {
-            // No active session -> decide if can check-in or must fill pengganti
-            if ($shift) {
-                // Use service helper to check "now in shift range"
-                $nowInShift = ShiftService::isNowInShift($shift);
-
-                if ($nowInShift) {
-                    $canCheckIn = true;
-                    $statusAbsen = 'Siap Absen';
-                } else {
-                    $statusAbsen = 'Diluar Jam Shift';
-                }
-
-            } else {
-                // Tidak ada jadwal -> wajib pakai form pengganti
-                $mustPengganti = true;
-                $statusAbsen = 'Tidak Terjadwal';
-            }
-        }
-
-        // Jika wajib pengganti dan ada sesi pending di session -> redirect ke form
-        if ($mustPengganti && ! $active) {
-            if (Session::get('absensi_id')) {
-                return redirect()->route('absensi.pengganti.form')
-                    ->with('info', 'Selesaikan absensi pengganti terlebih dahulu.');
-            }
-        }
 
         return view('dashboard.pegawai', [
-            'user' => $user,
             'pegawai' => $pegawai,
-            'shift' => $shift,
+            'todayAbsensi' => $todayAbsensi,
             'active' => $active,
-            'mustPengganti' => $mustPengganti,
-            'canCheckIn' => $canCheckIn,
-            'statusAbsen' => $statusAbsen,
             'hadirSesi' => $hadirSesi,
-            'isEarly' => $isEarly,
-            'endTimeFormatted' => $endTimeFormatted,
+
+            // 🔒 LOCK MODE — ABSENSI DASAR
+            'shift' => null,
+            'mustPengganti' => false,
+            'statusAbsen' => null,
+            'isEarly' => false,
+            'endTimeFormatted' => null,
         ]);
     }
 
-    /**
-     * API: kalender dynamic utk owner
-     */
-    public function getCalendarJson(Request $request): JsonResponse
+    /* ==========================================================
+       📅 CALENDAR JSON — FINAL & ADAPTIF
+       WEEK START = SUNDAY (SESUAI UI)
+    ========================================================== */
+    public function getCalendarJson(Request $request)
     {
-        if (!Auth::check() || Auth::user()->role !== 'owner') {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
+        abort_unless(auth()->user()->role === 'owner', 403);
 
-        $month = intval($request->query('month', now()->month));
-        $year  = intval($request->query('year', now()->year));
+        $month = (int) ($request->month ?? now()->month);
+        $year  = (int) ($request->year ?? now()->year);
 
-        Carbon::setLocale('id');
-        $firstDay = Carbon::create($year, $month, 1);
+        // Kalender mulai SENIN – selesai MINGGU
+        $start = Carbon::create($year, $month, 1)
+            ->startOfMonth()
+            ->startOfWeek(Carbon::SUNDAY); // ⬅️ PENTING
 
-        $startGrid = $firstDay->copy()->startOfMonth()->startOfWeek(Carbon::SUNDAY);
-        $endGrid   = $firstDay->copy()->endOfMonth()->endOfWeek(Carbon::SATURDAY);
+        $end = Carbon::create($year, $month, 1)
+            ->endOfMonth()
+            ->endOfWeek(Carbon::SATURDAY);
 
-        $absensiData = Absensi::whereBetween('tanggal', [$startGrid->toDateString(), $endGrid->toDateString()])
-                ->get()
-                ->groupBy(fn($x) => Carbon::parse($x->tanggal)->toDateString());
 
-        $pendingPos = [];
-        try {
-            $pendingPos = PosTransactionTemp::whereBetween('tanggal', [$startGrid->toDateString(), $endGrid->toDateString()])
-                ->pluck('tanggal')
-                ->map(fn($x) => Carbon::parse($x)->toDateString())
-                ->toArray();
-        } catch (\Exception $e) { }
+        $absensi = Absensi::whereBetween('tanggal', [
+            $start->toDateString(),
+            $end->toDateString()
+        ])->get()->groupBy(fn ($a) => $a->tanggal->toDateString());
 
         $days = [];
-        $curr = $startGrid->copy();
+        $cursor = $start->copy();
 
-        while ($curr <= $endGrid) {
-            $dateStr = $curr->toDateString();
-            $dots = [];
-            $summary = "";
-
-            if (isset($absensiData[$dateStr])) {
-                $rows = $absensiData[$dateStr];
-                $hadirCount = $rows->whereIn('status_kehadiran', ['hadir','pengganti'])->count();
-                $summary = $hadirCount > 0 ? "$hadirCount Pegawai" : "";
-
-                $status = $rows->pluck('status_kehadiran')->unique()->toArray();
-                if (in_array('alpha',$status)) $dots[]='red';
-                if (in_array('terlambat',$status)) $dots[]='yellow';
-                if (in_array('hadir',$status) || in_array('pengganti',$status)) $dots[]='green';
-            }
+        while ($cursor->lte($end)) {
+            $date = $cursor->toDateString();
+            $rows = $absensi[$date] ?? collect();
 
             $days[] = [
-                'label' => $curr->day,
-                'date' => $dateStr,
-                'dots' => array_slice(array_unique($dots),0,3),
-                'summary' => $summary,
-                'isCurrentMonth' => $curr->month == $month,
-                'isToday' => $curr->isToday(),
-                'pos_pending' => in_array($dateStr,$pendingPos),
+                'date'           => $date,
+                'dayNumber'      => (int) $cursor->day,          // 🔥 WAJIB
+                'isCurrentMonth' => $cursor->month === $month,   // 🔥 WAJIB
+                'isToday'        => $cursor->isToday(),          // 🔥 WAJIB
+                'hadir'          => $rows->whereIn('status_kehadiran', ['hadir','pengganti'])->count(),
+                'terlambat'      => $rows->where('status_kehadiran','terlambat')->count(),
+                'alpha'          => $rows->where('status_kehadiran','alpha')->count(),
             ];
 
-            $curr->addDay();
+            $cursor->addDay();
         }
 
-        return response()->json([
-            'calendar' => $days,
-            'pos_pending' => $pendingPos,
-            'currentMonthName' => $firstDay->isoFormat('MMMM YYYY'),
-            'currentMonth' => $month,
-            'currentYear' => $year,
-        ]);
+        return response()->json($days);
     }
 
-    /**
-     * STATS: Data untuk grafik/statistik owner (INI YANG KAMU MINTA)
-     */
-    public function stats(Request $request)
+    /* ==========================================================
+       📄 DETAIL PER TANGGAL
+    ========================================================== */
+    public function getRekapDetailJson(Request $request)
     {
-        $month = $request->month ?? now()->month;
-        $year  = $request->year ?? now()->year;
+        abort_unless(auth()->user()->role === 'owner', 403);
 
-        $leaderboard = Absensi::select('pegawai_id', DB::raw("COUNT(*) as hadir_count"))
-            ->whereMonth('tanggal', $month)
-            ->whereYear('tanggal', $year)
-            ->whereIn('status_kehadiran', ['hadir','pengganti'])
-            ->groupBy('pegawai_id')
-            ->with('pegawai:id,nama')
-            ->get()
-            ->map(fn($r) => [
-                'nama' => $r->pegawai->nama ?? 'Unknown',
-                'hadir_count' => (int)$r->hadir_count
-            ]);
+        $date = $request->date;
 
-        $hours = Absensi::select('pegawai_id', DB::raw("SUM(TIMESTAMPDIFF(MINUTE, check_in_at, check_out_at)) as total_minutes"))
-            ->whereMonth('tanggal', $month)
-            ->whereYear('tanggal', $year)
-            ->whereNotNull('check_out_at')
-            ->groupBy('pegawai_id')
-            ->with('pegawai:id,nama')
-            ->get()
-            ->map(fn($r) => [
-                'nama' => $r->pegawai->nama ?? 'Unknown',
-                'hours' => round(($r->total_minutes ?? 0) / 60, 2)
-            ]);
-
-        return view('dashboard.partials.attendance_stats', compact(
-            'month', 'leaderboard', 'hours'
-        ));
-    }
-
-    /**
-     * History pegawai (INI JUGA SAYA KEMBALIKAN BIAR LENGKAP)
-     */
-    public function history(Request $req)
-    {
-        $user = Auth::user();
-        $pegawai = $user->pegawai;
-
-        if (!$pegawai) {
-            return redirect()->route('dashboard')->with('error', 'Akun tidak terhubung.');
-        }
-
-        $month = intval($req->month ?? now()->month);
-        $year  = intval($req->year ?? now()->year);
-
-        $absensi = Absensi::where('pegawai_id', $pegawai->id)
-                        ->whereMonth('tanggal', $month)
-                        ->whereYear('tanggal', $year)
-                        ->orderBy('tanggal','desc')
-                        ->get();
-
-        $riwayat = $absensi->map(function($a){
-            $durasi = "-";
-            if ($a->check_in_at && $a->check_out_at) {
-                $m = Carbon::parse($a->check_out_at)->diffInMinutes($a->check_in_at);
-                $durasi = floor($m/60)." jam ".($m%60)." menit";
-            }
-            return [
-                'tanggal' => Carbon::parse($a->tanggal)->isoFormat('dddd, D MMMM Y'),
-                'check_in' => $a->check_in_at ? Carbon::parse($a->check_in_at)->format('H:i') : '-',
-                'check_out' => $a->check_out_at ? Carbon::parse($a->check_out_at)->format('H:i') : '-',
-                'durasi' => $durasi,
-                'status' => ucfirst($a->status_kehadiran),
-                'catatan' => $a->catatan,
-            ];
-        });
-
-        $totalMinutes = $absensi->sum(function($a){
-            if ($a->check_in_at && $a->check_out_at) {
-                return Carbon::parse($a->check_out_at)->diffInMinutes($a->check_in_at);
-            }
-            return 0;
-        });
-
-        $summaryJam = floor($totalMinutes / 60)." jam ".($totalMinutes % 60)." menit";
-
-        return view('pegawai.history', compact(
-            'pegawai','riwayat','month','year','summaryJam'
-        ));
-    }
-
-    /**
-     * API: Detail absensi per tanggal untuk owner
-     */
-    public function getRekapDetailJson(Request $req): JsonResponse
-    {
-        $req->validate(['date'=>'required|date']);
-        $date = $req->date;
-
-        $list = Absensi::with('pegawai')
-            ->where('tanggal', $date)
+        $rows = Absensi::with('pegawai:id,nama,jabatan')
+            ->whereDate('tanggal', $date)
             ->get();
 
-        $summary = [
-            'hadir' => 0, 'terlambat' => 0, 'alpha' => 0, 'pengganti' => 0
-        ];
-
-        $rows = $list->map(function ($a) use (&$summary) {
-            $st = strtolower($a->status_kehadiran);
-            if (isset($summary[$st])) $summary[$st]++;
-
-            return [
-                'nama' => $a->pegawai->nama ?? '-',
-                'posisi' => $a->pegawai->jabatan ?? '-',
-                'status_kehadiran' => $st,
-                'check_in'  => $a->check_in_at ? Carbon::parse($a->check_in_at)->format('H:i') : null,
-                'check_out' => $a->check_out_at ? Carbon::parse($a->check_out_at)->format('H:i') : null,
-                'catatan'   => $a->catatan
-            ];
-        });
-
         return response()->json([
-            'date_formatted' => Carbon::parse($date)->isoFormat('dddd, D MMMM YYYY'),
-            'summary' => $summary,
-            'rows' => $rows
+            'date_formatted' => Carbon::parse($date)->translatedFormat('d F Y'),
+            'summary' => [
+                'hadir'     => $rows->whereIn('status_kehadiran',['hadir','pengganti'])->count(),
+                'terlambat' => $rows->where('status_kehadiran','terlambat')->count(),
+                'alpha'     => $rows->where('status_kehadiran','alpha')->count(),
+            ],
+            'rows' => $rows->map(fn($r) => [
+                'nama'      => $r->pegawai->nama,
+                'posisi'    => $r->pegawai->jabatan,
+                'status'    => $r->status_kehadiran,
+                'check_in'  => optional($r->check_in_at)->format('H:i'),
+                'check_out' => optional($r->check_out_at)->format('H:i'),
+                'catatan'   => $r->catatan,
+            ])
         ]);
+    }
+
+    /* ==========================================================
+       📊 STATS
+    ========================================================== */
+    public function stats(Request $request)
+    {
+        abort_unless(Auth::user()->role === 'owner', 403);
+
+        $month = (int) ($request->month ?? now()->month);
+        $year  = (int) ($request->year  ?? now()->year);
+
+        $leaderboard = Absensi::select('pegawai_id', DB::raw('COUNT(*) as total'))
+            ->whereMonth('tanggal',$month)
+            ->whereYear('tanggal',$year)
+            ->whereIn('status_kehadiran',['hadir','pengganti'])
+            ->groupBy('pegawai_id')
+            ->with('pegawai:id,nama')
+            ->get();
+
+        return view('dashboard.partials.attendance_stats', compact(
+            'leaderboard','month','year'
+        ));
     }
 }
