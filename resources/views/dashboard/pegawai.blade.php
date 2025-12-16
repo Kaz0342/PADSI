@@ -142,7 +142,7 @@ h3 i { color: var(--accent); }
 
 <div class="row-flex">
 
-    {{-- LEFT BOX: STATUS HARI INI (REVISI TOTAL) --}}
+    {{-- LEFT BOX: STATUS HARI INI (SIMPLE) --}}
     <div class="card-box">
         <h3><i class="fa-solid fa-user-clock"></i> Status Hari Ini</h3>
 
@@ -166,7 +166,7 @@ h3 i { color: var(--accent); }
             </div>
 
             @if($active)
-                {{-- TOMBOL CHECKOUT MUNCUL KALO MASIH AKTIF --}}
+                {{-- TOMBOL CHECKOUT (MEMBUKA MODAL) --}}
                 <button class="btn-checkout-danger" onclick="openModal('checkoutModal')">
                     <i class="fa-solid fa-right-from-bracket"></i> Check-Out
                 </button>
@@ -180,7 +180,7 @@ h3 i { color: var(--accent); }
                 </div>
             @endif
         @else
-            {{-- BELUM ABSEN (Gak ada tombol absen disini, karena absen via login awal) --}}
+            {{-- BELUM ABSEN --}}
             <div style="text-align:center; color:var(--text-mid); padding:20px;">
                 <i class="fa-solid fa-coffee" style="font-size:24px; margin-bottom:10px; display:block;"></i>
                 Belum ada data absensi hari ini.
@@ -226,7 +226,7 @@ h3 i { color: var(--accent); }
 
 </div>
 
-{{-- MODAL CHECK-OUT (SIMPLE) --}}
+{{-- MODAL CHECK-OUT (FORM SUBMIT) --}}
 <div id="checkoutModal" class="modal-backdrop" onclick="closeModal('checkoutModal')">
     <div class="modal-glass" onclick="event.stopPropagation()">
 
@@ -239,9 +239,9 @@ h3 i { color: var(--accent); }
             Yakin mau pulang sekarang, King?
         </p>
 
+        {{-- 🔥 FORM YANG BENAR: POST KE ROUTE --}}
         <form action="{{ route('absensi.checkout') }}" method="POST">
             @csrf
-
             <label style="display:block; margin-bottom:8px; font-size:13px; color:#d1d5db;">
                 Catatan (Opsional)
             </label>
@@ -250,11 +250,19 @@ h3 i { color: var(--accent); }
                 style="width:100%; padding:12px; border-radius:10px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.2); color:white; outline:none;">
             </textarea>
 
-            <div style="margin-top:20px; display:flex; justify-content:flex-end; gap:10px;">
-                <button type="button" class="btn-secondary-glass" onclick="closeModal('checkoutModal')">
+           <div style="margin-top:20px; display:flex; justify-content:flex-end; gap:10px;">
+                <button type="button"
+                    class="btn-secondary-glass"
+                    style="padding:10px 18px; font-size:13px;"
+                    onclick="closeModal('checkoutModal')">
                     Batal
                 </button>
-                <button type="submit" class="btn-checkout-danger" style="width:auto;">Ya, Check-out</button>
+
+                <button type="submit"
+                    class="btn-checkout-danger"
+                    style="padding:10px 18px; font-size:13px;">
+                    Check-out
+                </button>
             </div>
         </form>
     </div>

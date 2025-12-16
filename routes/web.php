@@ -3,7 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 
-// CONTROLLERS
+// ================= CONTROLLERS =================
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OwnerDashboardController;
@@ -13,59 +13,63 @@ use App\Http\Controllers\ShiftController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\PosImportController;
 
-/* ============================================================
-| AUTH
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| AUTH (LOGIN / LOGOUT)
+|--------------------------------------------------------------------------
+*/
 Route::get('/', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login'])->name('login.process');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
-/* ============================================================
-| AUTH CHECK (LOGIN REQUIRED)
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| AUTH CHECK (WAJIB LOGIN)
+|--------------------------------------------------------------------------
+*/
 Route::middleware(['authcheck'])->group(function () {
 
-    /* ========================================================
-    | DASHBOARD (GENERAL)
-    ======================================================== */
+    /*
+    |--------------------------------------------------------------------------
+    | DASHBOARD UMUM
+    |--------------------------------------------------------------------------
+    */
     Route::get('/dashboard', [DashboardController::class, 'index'])
         ->name('dashboard');
 
-    /* ========================================================
-    | INVENTORY (SHARED VIEW)
-    ======================================================== */
+    /*
+    |--------------------------------------------------------------------------
+    | INVENTORY (SHARED)
+    |--------------------------------------------------------------------------
+    */
     Route::get('/inventory', fn () => view('inventory.index'))
         ->name('inventory.index');
 
-    /* ========================================================
+    /*
+    |--------------------------------------------------------------------------
     | OWNER ONLY
-    ======================================================== */
-    Route::middleware(['role:owner'])->group(function () {
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware(['owner'])->group(function () {
 
-        /* ================= DASHBOARD OWNER ================= */
+        // ===== DASHBOARD OWNER =====
+        Route::get('/dashboard/stats', [OwnerDashboardController::class, 'stats'])
+            ->name('dashboard.stats');
 
-        // Statistik Dashboard (AJAX / Partial)
-        Route::get('/dashboard/stats',
-            [OwnerDashboardController::class, 'stats']
-        )->name('dashboard.stats');
-
-        // Kalender Absensi (AJAX JSON)
+        // ===== KALENDER & REKAP ABSENSI (AJAX) =====
         Route::get('/api/absensi/rekap/calendar',
             [DashboardController::class, 'getCalendarJson']
         );
 
-        // Detail Rekap Absensi (AJAX JSON)
         Route::get('/api/absensi/rekap/detail',
             [DashboardController::class, 'getRekapDetailJson']
         );
 
-        /* ================= CRUD PEGAWAI ================= */
-
+        // ===== CRUD PEGAWAI =====
         Route::resource('pegawai', PegawaiController::class)
             ->except(['show']);
 
-        /* ================= SHIFT MANAGEMENT ================= */
-
+        // ===== SHIFT MANAGEMENT =====
         Route::get('/shifts', [ShiftController::class, 'index'])
             ->name('shifts.index');
 
@@ -78,13 +82,11 @@ Route::middleware(['authcheck'])->group(function () {
         Route::post('/shifts/save-batch', [ShiftController::class, 'saveBatch'])
             ->name('shifts.saveBatch');
 
-        /* ================= ABSENSI REKAP ================= */
-
+        // ===== REKAP ABSENSI =====
         Route::get('/absensi/rekap', [AbsensiController::class, 'rekap'])
             ->name('absensi.rekap');
 
-        /* ================= POS CSV ================= */
-
+        // ===== POS CSV =====
         Route::get('/import/csv', [PosImportController::class, 'showUpload'])
             ->name('pos.import.form');
 
@@ -92,8 +94,7 @@ Route::middleware(['authcheck'])->group(function () {
         Route::post('/pos/import', [PosImportController::class, 'import'])
             ->name('api.pos.import');
 
-        /* ================= POS VERIFICATION ================= */
-
+        // ===== POS VERIFICATION =====
         Route::get('/absensi/rekap/verify/{date}',
             [PosImportController::class, 'showVerificationPage']
         );
@@ -111,27 +112,32 @@ Route::middleware(['authcheck'])->group(function () {
         );
     });
 
-    /* ========================================================
+    /*
+    |--------------------------------------------------------------------------
     | PEGAWAI ONLY
-    ======================================================== */
-    Route::middleware(['role:pegawai'])->group(function () {
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware(['pegawai'])->group(function () {
 
-        /* ================= ABSENSI UTAMA ================= */
-
-        // Halaman Absen
+        // ===== ABSENSI UTAMA =====
         Route::get('/absensi', [AbsensiController::class, 'index'])
             ->name('absensi.index');
 
-        // 🔥 Route Check-In (Masuk)
-        //Route::post('/absensi/checkin', [AbsensiController::class, 'checkIn'])
-            //->name('absensi.checkin');
+        // CHECK-IN (POST ONLY)
+        Route::post('/absensi/checkin', [AbsensiController::class, 'checkIn'])
+            ->name('absensi.checkin');
 
-        // Route Check-Out (Pulang)
+        // 🚫 BLOCK GET CHECKOUT (ANTI 403 NYEBELIN)
+        Route::get('/absensi/checkout', function () {
+            return redirect()->route('dashboard')
+                ->with('error', 'Akses tidak valid.');
+        });
+
+        // CHECK-OUT (POST ONLY)
         Route::post('/absensi/checkout', [AbsensiController::class, 'checkOut'])
             ->name('absensi.checkout');
 
-        /* ================= ABSENSI PENGGANTI ================= */
-
+        // ===== ABSENSI PENGGANTI =====
         Route::get('/absensi/pengganti',
             [AbsensiController::class, 'showPenggantiForm']
         )->name('absensi.pengganti.form');
@@ -140,8 +146,7 @@ Route::middleware(['authcheck'])->group(function () {
             [AbsensiController::class, 'storePengganti']
         )->name('absensi.pengganti.store');
 
-        /* ================= HISTORY ================= */
-
+        // ===== HISTORY =====
         Route::get('/pegawai/history',
             [DashboardController::class, 'history']
         )->name('pegawai.history');

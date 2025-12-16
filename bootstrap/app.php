@@ -3,8 +3,10 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
-use App\Http\Middleware\AuthCheck; // <-- Middleware lo yang krusial
-use App\Http\Middleware\RoleCheck; // <-- Middleware lo yang krusial
+
+use App\Http\Middleware\AuthCheck;
+use App\Http\Middleware\Pegawai;
+use App\Http\Middleware\Owner;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -13,13 +15,14 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        
-        // Pendaftaran ROUTE MIDDLEWARE untuk AuthCheck dan RoleCheck
+
         $middleware->alias([
             'authcheck' => AuthCheck::class,
-            'role' => RoleCheck::class,
+            'pegawai'   => Pegawai::class,
+            'owner'     => Owner::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
-    })->create();
+    })
+    ->create();

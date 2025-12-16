@@ -7,12 +7,14 @@ use Illuminate\Http\Request;
 
 class Pegawai
 {
-    public function handle(Request $request, Closure $next)
+    public function handle($request, Closure $next)
     {
-        $user = auth()->user();
+        if (!auth()->check()) {
+            return redirect()->route('login');
+        }
 
-        if (!$user || $user->role !== 'pegawai') {
-            abort(403, 'Akses khusus pegawai.');
+        if (auth()->user()->role !== 'pegawai') {
+            abort(403);
         }
 
         return $next($request);
